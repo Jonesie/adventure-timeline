@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.TwoWheeler
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
@@ -81,7 +82,10 @@ fun TripDetailScreen(
     onBack: () -> Unit,
     onAddLeg: () -> Unit,
     onCapturePhoto: () -> Unit,
-    onImportPhoto: () -> Unit,
+    onCaptureVideo: () -> Unit,
+    onPickMedia: () -> Unit,
+    onAutoAddMedia: () -> Unit,
+    onOpenMedia: (Int) -> Unit,
     onRecordAudio: () -> Unit,
     onImportAudio: () -> Unit,
     onAddImpression: () -> Unit,
@@ -90,6 +94,7 @@ fun TripDetailScreen(
 ) {
     val detail by remember(tripId) { viewModel.tripDetail(tripId) }.collectAsState(initial = null)
     val trip = detail
+    val importProgress by viewModel.mediaImportProgress.collectAsState()
     var confirmDelete by remember { mutableStateOf(false) }
     var overflowExpanded by remember { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -115,14 +120,11 @@ fun TripDetailScreen(
                 IconButton(onClick = onCapturePhoto) {
                     Icon(Icons.Filled.PhotoCamera, contentDescription = "Capture photo")
                 }
-                IconButton(onClick = onImportPhoto) {
-                    Icon(Icons.Filled.AddPhotoAlternate, contentDescription = "Import photo")
+                IconButton(onClick = onCaptureVideo) {
+                    Icon(Icons.Filled.Videocam, contentDescription = "Record video")
                 }
                 IconButton(onClick = onRecordAudio) {
                     Icon(Icons.Filled.Mic, contentDescription = "Record audio")
-                }
-                IconButton(onClick = onImportAudio) {
-                    Icon(Icons.Filled.AudioFile, contentDescription = "Import audio")
                 }
                 IconButton(onClick = onAddImpression) {
                     Icon(Icons.Filled.EditNote, contentDescription = "Add impression")
@@ -132,6 +134,11 @@ fun TripDetailScreen(
                     Icon(Icons.Filled.MoreVert, contentDescription = "More")
                 }
                 DropdownMenu(expanded = overflowExpanded, onDismissRequest = { overflowExpanded = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Import audio…") },
+                        leadingIcon = { Icon(Icons.Filled.AudioFile, contentDescription = null) },
+                        onClick = { overflowExpanded = false; onImportAudio() }
+                    )
                     DropdownMenuItem(
                         text = { Text("Edit trip") },
                         leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
@@ -211,7 +218,7 @@ fun TripDetailScreen(
                 when (selectedTab) {
                     0 -> OverviewTab(tripId, viewModel, trip, onOpenMap, onRate = { viewModel.setTripRating(tripId, it) })
                     1 -> LegsTab(legGroups, onEditGroup = { editingGroup = it })
-                    2 -> MediaTab(trip)
+                    2 -> MediaTab(trip, importProgress, onPickMedia, onAutoAddMedia, onOpenMedia)
                     else -> NotesTab(trip)
                 }
             }
@@ -282,19 +289,6 @@ private fun LegsTab(legGroups: List<LegGroup>, onEditGroup: (LegGroup) -> Unit) 
     Text("Tap a leg to change its transport", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp))
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         items(legGroups) { group -> LegRow(group, onClick = { onEditGroup(group) }) }
-    }
-}
-
-@Composable
-private fun MediaTab(trip: TripDetail) {
-    if (trip.media.isEmpty()) {
-        Text("No photos or audio yet", modifier = Modifier.padding(top = 16.dp))
-        return
-    }
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(top = 8.dp)) {
-        items(trip.media) { media ->
-            Text("${media.type}: ${media.caption.ifBlank { media.uri }}", modifier = Modifier.padding(vertical = 4.dp))
-        }
     }
 }
 

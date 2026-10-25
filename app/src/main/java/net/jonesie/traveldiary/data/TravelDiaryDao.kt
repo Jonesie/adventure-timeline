@@ -78,6 +78,18 @@ interface TravelDiaryDao {
     suspend fun insertMediaItem(mediaItem: MediaItem): Long
 
     @Insert
+    suspend fun insertMediaItems(items: List<MediaItem>)
+
+    @Query("SELECT uri FROM media_items WHERE tripId = :tripId")
+    suspend fun getMediaUris(tripId: Long): List<String>
+
+    @Query("DELETE FROM media_items WHERE id = :id")
+    suspend fun deleteMediaItem(id: Long)
+
+    @Query("SELECT * FROM trips WHERE id = :id")
+    suspend fun getTripById(id: Long): Trip?
+
+    @Insert
     suspend fun insertImpression(impression: Impression): Long
 
     @Insert

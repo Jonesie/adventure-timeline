@@ -11,7 +11,7 @@ enum class TransportType {
 }
 
 enum class MediaType {
-    PHOTO, AUDIO
+    PHOTO, VIDEO, AUDIO
 }
 
 @Entity(tableName = "trips")

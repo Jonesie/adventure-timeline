@@ -1,6 +1,7 @@
 package net.jonesie.traveldiary.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -8,10 +9,13 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import net.jonesie.traveldiary.data.Companion
 import net.jonesie.traveldiary.data.Impression
 import net.jonesie.traveldiary.data.Leg
@@ -25,9 +29,12 @@ import net.jonesie.traveldiary.data.TravelDiaryDatabase
 import net.jonesie.traveldiary.data.RoutePoint
 import net.jonesie.traveldiary.util.ActivityLeg
 import net.jonesie.traveldiary.util.NEARBY_RADIUS_DEGREES_SQUARED
+import net.jonesie.traveldiary.util.CameraRoll
+import net.jonesie.traveldiary.util.MediaFiles
 import net.jonesie.traveldiary.util.PathPoint
 import net.jonesie.traveldiary.util.PlaceInfo
 import net.jonesie.traveldiary.util.ReverseGeocoder
+import net.jonesie.traveldiary.util.TripTimeWindow
 
 class TravelDiaryViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -247,6 +254,72 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
+    private val _mediaImportProgress = MutableStateFlow<MediaImportProgress?>(null)
+    val mediaImportProgress: StateFlow<MediaImportProgress?> = _mediaImportProgress.asStateFlow()
+
+    /**
+     * Copies picked files into the app and adds them to the trip. [forcedType] overrides the
+     * photo/video guess from the file's mime type (used for audio files).
+     */
+    fun importFiles(tripId: Long, uris: List<Uri>, forcedType: MediaType?, onDone: (added: Int, failed: Int) -> Unit) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            val context = getApplication<Application>()
+            var added = 0
+            var failed = 0
+            _mediaImportProgress.value = MediaImportProgress(0, uris.size)
+            uris.forEachIndexed { index, uri ->
+                val copied = withContext(Dispatchers.IO) { runCatching { MediaFiles.copyIntoApp(context, uri) }.getOrNull() }
+                if (copied == null) {
+                    failed++
+                } else {
+                    val type = forcedType ?: when {
+                        copied.mimeType?.startsWith("video/") == true -> MediaType.VIDEO
+                        copied.mimeType?.startsWith("audio/") == true -> MediaType.AUDIO
+                        else -> MediaType.PHOTO
+                    }
+                    dao.insertMediaItem(
+                        MediaItem(
+                            tripId = tripId,
+                            type = type,
+                            uri = copied.uri.toString(),
+                            timestamp = copied.takenAt ?: System.currentTimeMillis()
+                        )
+                    )
+                    added++
+                }
+                _mediaImportProgress.value = MediaImportProgress(index + 1, uris.size)
+            }
+            _mediaImportProgress.value = null
+            onDone(added, failed)
+        }
+    }
+
+    /**
+     * Adds photos and videos this phone's camera took during the trip's dates. They're referenced
+     * in place (not copied), and anything already in the trip is skipped, so it's safe to re-run.
+     * Returns (photos added, videos added).
+     */
+    suspend fun autoAddCameraMedia(tripId: Long): Pair<Int, Int> {
+        val trip = dao.getTripById(tripId) ?: return 0 to 0
+        val window = TripTimeWindow.of(trip)
+        val context = getApplication<Application>()
+        val existing = dao.getMediaUris(tripId).toHashSet()
+        val found = withContext(Dispatchers.IO) { CameraRoll.find(context, window.first, window.last) }
+        val fresh = found.filter { it.uri.toString() !in existing }
+        dao.insertMediaItems(
+            fresh.map { MediaItem(tripId = tripId, type = it.type, uri = it.uri.toString(), timestamp = it.takenAt) }
+        )
+        return fresh.count { it.type == MediaType.PHOTO } to fresh.count { it.type == MediaType.VIDEO }
+    }
+
+    fun deleteMedia(item: MediaItem) {
+        viewModelScope.launch {
+            dao.deleteMediaItem(item.id)
+            withContext(Dispatchers.IO) { MediaFiles.deleteIfOwned(getApplication(), item.uri) }
+        }
+    }
+
     fun setTripRating(tripId: Long, rating: Int) {
         viewModelScope.launch { dao.updateTripRating(tripId, rating.coerceIn(0, 5)) }
     }
@@ -273,6 +346,8 @@ private fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): 
         Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) * Math.sin(dLon / 2).let { it * it }
     return 6371.0 * 2 * Math.asin(Math.sqrt(a))
 }
+
+data class MediaImportProgress(val done: Int, val total: Int)
 
 data class NearbyResult(
     val impressions: List<Impression>,
