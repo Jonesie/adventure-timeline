@@ -1,0 +1,39 @@
+package net.jonesie.traveldiary.data
+
+import androidx.room.Embedded
+import androidx.room.Junction
+import androidx.room.Relation
+
+data class TripWithCompanions(
+    @Embedded val trip: Trip,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "id",
+        associateBy = Junction(
+            value = TripCompanionCrossRef::class,
+            parentColumn = "tripId",
+            entityColumn = "companionId"
+        )
+    )
+    val companions: List<Companion>
+)
+
+data class TripDetail(
+    @Embedded val trip: Trip,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "id",
+        associateBy = Junction(
+            value = TripCompanionCrossRef::class,
+            parentColumn = "tripId",
+            entityColumn = "companionId"
+        )
+    )
+    val companions: List<Companion>,
+    @Relation(parentColumn = "id", entityColumn = "tripId")
+    val legs: List<Leg>,
+    @Relation(parentColumn = "id", entityColumn = "tripId")
+    val media: List<MediaItem>,
+    @Relation(parentColumn = "id", entityColumn = "tripId")
+    val impressions: List<Impression>
+)
