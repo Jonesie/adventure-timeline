@@ -14,8 +14,8 @@ All data is stored on the device (Room/SQLite). Nothing is synced anywhere yet.
 - **Legs** with a transport type (walk, bike, motorbike, car, bus, train, plane, boat, other).
   Change it on a single leg, or for every leg of a type across a whole trip.
 - **Route map** (OpenStreetMap via osmdroid) drawn from the recorded GPS trail, with a full-screen view.
-- **Photos, videos and audio**: capture with the camera or microphone, pick files from anywhere on the
-  phone, or auto-add everything your camera shot during the trip's dates (`DCIM/Camera` only). Shown as
+- **Photos, videos and audio**: capture with the camera or microphone, pick from anywhere on the phone
+  (the picker opens on the trip's dates), or auto-add everything your camera shot during the trip's dates (`DCIM/Camera` only). Shown as
   a thumbnail gallery with full-screen viewing and in-app playback.
 - **Notes**: quick timestamped impressions, tagged with your location when available.
 - **Google Timeline import**: pulls the trips Google has already detected, with their legs, transport

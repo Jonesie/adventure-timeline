@@ -7,32 +7,54 @@ import android.os.Build
 import android.provider.MediaStore
 import net.jonesie.traveldiary.data.MediaType
 
-/** Finds photos and videos taken within a time window by this phone's own camera (DCIM/Camera only). */
+/** Finds photos and videos on the phone, optionally limited to a time window and/or the camera folder. */
 object CameraRoll {
 
     data class Item(val uri: Uri, val type: MediaType, val takenAt: Long)
 
+    /** Photos and videos this phone's own camera (DCIM/Camera) took within the window. */
     fun find(context: Context, fromMs: Long, toMs: Long): List<Item> =
-        (query(context, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, MediaType.PHOTO, fromMs, toMs) +
-            query(context, MediaStore.Video.Media.EXTERNAL_CONTENT_URI, MediaType.VIDEO, fromMs, toMs))
-            .sortedBy { it.takenAt }
+        find(context, fromMs..toMs, cameraOnly = true)
 
-    private fun query(context: Context, base: Uri, type: MediaType, fromMs: Long, toMs: Long): List<Item> {
-        val (pathClause, pathArg) = if (Build.VERSION.SDK_INT >= 29) {
-            "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?" to "DCIM/Camera%"
-        } else {
-            "${MediaStore.MediaColumns.DATA} LIKE ?" to "%/DCIM/Camera/%"
+    /** [range] null means any date; [cameraOnly] false means any folder. */
+    fun find(context: Context, range: LongRange?, cameraOnly: Boolean, newestFirst: Boolean = false): List<Item> {
+        val items = query(context, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, MediaType.PHOTO, range, cameraOnly, newestFirst) +
+            query(context, MediaStore.Video.Media.EXTERNAL_CONTENT_URI, MediaType.VIDEO, range, cameraOnly, newestFirst)
+        return if (newestFirst) items.sortedByDescending { it.takenAt } else items.sortedBy { it.takenAt }
+    }
+
+    private fun query(
+        context: Context,
+        base: Uri,
+        type: MediaType,
+        range: LongRange?,
+        cameraOnly: Boolean,
+        newestFirst: Boolean
+    ): List<Item> {
+        val clauses = mutableListOf<String>()
+        val args = mutableListOf<String>()
+        if (range != null) {
+            clauses += "${MediaStore.MediaColumns.DATE_TAKEN} BETWEEN ? AND ?"
+            args += range.first.toString()
+            args += range.last.toString()
         }
-        val selection = "${MediaStore.MediaColumns.DATE_TAKEN} BETWEEN ? AND ? AND $pathClause"
-        val args = arrayOf(fromMs.toString(), toMs.toString(), pathArg)
+        if (cameraOnly) {
+            if (Build.VERSION.SDK_INT >= 29) {
+                clauses += "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+                args += "DCIM/Camera%"
+            } else {
+                clauses += "${MediaStore.MediaColumns.DATA} LIKE ?"
+                args += "%/DCIM/Camera/%"
+            }
+        }
 
         val items = mutableListOf<Item>()
         context.contentResolver.query(
             base,
             arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DATE_TAKEN),
-            selection,
-            args,
-            "${MediaStore.MediaColumns.DATE_TAKEN} ASC"
+            clauses.takeIf { it.isNotEmpty() }?.joinToString(" AND "),
+            args.takeIf { it.isNotEmpty() }?.toTypedArray(),
+            "${MediaStore.MediaColumns.DATE_TAKEN} ${if (newestFirst) "DESC" else "ASC"}"
         )?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
             val takenCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_TAKEN)

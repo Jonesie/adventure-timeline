@@ -32,6 +32,7 @@ import net.jonesie.traveldiary.ui.AddTripScreen
 import net.jonesie.traveldiary.ui.EditTripScreen
 import net.jonesie.traveldiary.ui.FullScreenMapScreen
 import net.jonesie.traveldiary.ui.ImportTimelineScreen
+import net.jonesie.traveldiary.ui.MediaPickerScreen
 import net.jonesie.traveldiary.ui.MediaViewerScreen
 import net.jonesie.traveldiary.ui.NearbyScreen
 import net.jonesie.traveldiary.ui.RecordAudioScreen
@@ -179,6 +180,17 @@ private fun TravelDiaryApp() {
                 if (results.values.any { it }) runAutoAdd()
                 else Toast.makeText(context, "Allow photo & video access to find your camera shots", Toast.LENGTH_LONG).show()
             }
+            fun hasMediaAccess() = mediaPermissions.any {
+                ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+            }
+            val requestMediaForPicker = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+                if (results.values.any { it }) {
+                    navController.navigate("tripDetail/$tripId/pick")
+                } else {
+                    // No library access: the system photo picker still works without it.
+                    pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                }
+            }
 
             TripDetailScreen(
                 tripId = tripId,
@@ -188,7 +200,8 @@ private fun TravelDiaryApp() {
                 onCapturePhoto = { withCamera { launchPhoto() } },
                 onCaptureVideo = { withCamera { launchVideo() } },
                 onPickMedia = {
-                    pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                    if (hasMediaAccess()) navController.navigate("tripDetail/$tripId/pick")
+                    else requestMediaForPicker.launch(mediaPermissions)
                 },
                 onAutoAddMedia = {
                     val hasAccess = mediaPermissions.any {
@@ -211,6 +224,14 @@ private fun TravelDiaryApp() {
         ) { backStackEntry ->
             val tripId = backStackEntry.arguments?.getLong("tripId") ?: return@composable
             FullScreenMapScreen(tripId = tripId, viewModel = viewModel, onBack = { navController.popBackStack() })
+        }
+
+        composable(
+            "tripDetail/{tripId}/pick",
+            arguments = listOf(navArgument("tripId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val tripId = backStackEntry.arguments?.getLong("tripId") ?: return@composable
+            MediaPickerScreen(tripId = tripId, viewModel = viewModel, onBack = { navController.popBackStack() })
         }
 
         composable(
