@@ -201,10 +201,10 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         val existing = dao.findTripByDateRange(startDate, endDate)
         // Manual edits survive a re-import: legs whose transport was changed by hand are matched
         // back by their (start, end) time, and a hand-edited title isn't regenerated.
-        val editedTransport = HashMap<Pair<Long, Long?>, TransportType>()
+        val editedLegs = HashMap<Pair<Long, Long?>, Leg>()
         val tripId = if (existing != null) {
             if (!existing.titleEdited) dao.updateTripTitle(existing.id, title)
-            dao.getEditedLegs(existing.id).forEach { editedTransport[it.startTime to it.endTime] = it.transportType }
+            dao.getEditedLegs(existing.id).forEach { editedLegs[it.startTime to it.endTime] = it }
             dao.deleteLegsForTrip(existing.id)
             dao.deleteRoutePointsForTrip(existing.id)
             existing.id
@@ -214,7 +214,8 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
 
         sortedLegs.forEachIndexed { index, leg ->
             onProgress("Saving legs (${index + 1}/${sortedLegs.size})")
-            val keptTransport = editedTransport[leg.startTime to leg.endTime]
+            val keptLeg = editedLegs[leg.startTime to leg.endTime]
+            val keptTransport = keptLeg?.takeIf { it.transportEdited }?.transportType
             dao.insertLeg(
                 Leg(
                     tripId = tripId,
@@ -227,7 +228,9 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
                     originLon = leg.originLon,
                     destinationLat = leg.destinationLat,
                     destinationLon = leg.destinationLon,
-                    transportEdited = keptTransport != null
+                    transportEdited = keptTransport != null,
+                    difficulty = keptLeg?.difficulty ?: 0,
+                    enjoyment = keptLeg?.enjoyment ?: 0
                 )
             )
         }
@@ -242,8 +245,10 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
 
     suspend fun routePointsFor(tripId: Long) = dao.getRoutePointsForTrip(tripId)
 
-    fun setLegsTransport(legIds: List<Long>, type: TransportType) {
-        viewModelScope.launch { dao.updateLegsTransport(legIds, type) }
+    fun setLegDetails(legIds: List<Long>, type: TransportType, difficulty: Int, enjoyment: Int) {
+        viewModelScope.launch {
+            dao.updateLegDetails(legIds, type, difficulty.coerceIn(0, 5), enjoyment.coerceIn(0, 5))
+        }
     }
 
     /** [from] null means every leg of the trip. */

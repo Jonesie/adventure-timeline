@@ -54,7 +54,7 @@ fun AddLegScreen(
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
             ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
                 OutlinedTextField(
-                    value = transportType.name,
+                    value = transportType.displayName(),
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Transport") },
@@ -63,7 +63,7 @@ fun AddLegScreen(
                 )
                 DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     TransportType.entries.forEach { type ->
-                        DropdownMenuItem(text = { Text(type.name) }, onClick = {
+                        DropdownMenuItem(text = { Text(type.displayName()) }, onClick = {
                             transportType = type
                             expanded = false
                         })

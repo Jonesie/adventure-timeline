@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Impression::class,
         RoutePoint::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class TravelDiaryDatabase : RoomDatabase() {
@@ -39,13 +39,20 @@ abstract class TravelDiaryDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE legs ADD COLUMN difficulty INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE legs ADD COLUMN enjoyment INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun get(context: Context): TravelDiaryDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     TravelDiaryDatabase::class.java,
                     "travel-diary.db"
-                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4).fallbackToDestructiveMigration().build().also { instance = it }
+                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).fallbackToDestructiveMigration().build().also { instance = it }
             }
     }
 }

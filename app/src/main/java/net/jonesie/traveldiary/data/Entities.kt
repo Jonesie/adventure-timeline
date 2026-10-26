@@ -7,7 +7,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 enum class TransportType {
-    WALK, BIKE, MOTORBIKE, CAR, BUS, TRAIN, PLANE, BOAT, OTHER
+    WALK, BIKE, MOTORBIKE, CAR, FOUR_WD, BUS, TRAIN, PLANE, BOAT, OTHER
 }
 
 enum class MediaType {
@@ -65,7 +65,10 @@ data class Leg(
     val originLon: Double? = null,
     val destinationLat: Double? = null,
     val destinationLon: Double? = null,
-    @ColumnInfo(defaultValue = "0") val transportEdited: Boolean = false
+    @ColumnInfo(defaultValue = "0") val transportEdited: Boolean = false,
+    // 0 = not rated, otherwise 1..5 (difficulty: 1 easiest, 5 hardest)
+    @ColumnInfo(defaultValue = "0") val difficulty: Int = 0,
+    @ColumnInfo(defaultValue = "0") val enjoyment: Int = 0
 )
 
 @Entity(

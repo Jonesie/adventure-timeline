@@ -2,6 +2,9 @@ package net.jonesie.traveldiary.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -34,6 +37,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.outlined.StarBorder
@@ -179,10 +183,10 @@ fun TripDetailScreen(
         val legGroups = remember(trip.legs) { groupConsecutiveLegs(trip.legs) }
 
         editingGroup?.let { group ->
-            TransportPickerDialog(
-                selected = group.transportType,
-                onPick = { type ->
-                    viewModel.setLegsTransport(group.legIds, type)
+            LegEditDialog(
+                group = group,
+                onSave = { type, difficulty, enjoyment ->
+                    viewModel.setLegDetails(group.legIds, type, difficulty, enjoyment)
                     editingGroup = null
                 },
                 onDismiss = { editingGroup = null }
@@ -286,7 +290,7 @@ private fun LegsTab(legGroups: List<LegGroup>, onEditGroup: (LegGroup) -> Unit) 
         Text("No legs logged yet", modifier = Modifier.padding(top = 16.dp))
         return
     }
-    Text("Tap a leg to change its transport", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp))
+    Text("Tap a leg to edit its transport, difficulty and enjoyment", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp))
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         items(legGroups) { group -> LegRow(group, onClick = { onEditGroup(group) }) }
     }
@@ -318,7 +322,9 @@ private data class LegGroup(
     val startTime: Long,
     val endTime: Long?,
     val count: Int,
-    val legIds: List<Long>
+    val legIds: List<Long>,
+    val difficulty: Int,
+    val enjoyment: Int
 )
 
 /** Adjacent legs with the same transport type and endpoints collapse into one row with a time range. */
@@ -328,11 +334,12 @@ private fun groupConsecutiveLegs(legs: List<Leg>): List<LegGroup> {
     for (leg in sorted) {
         val last = groups.lastOrNull()
         if (last != null && last.transportType == leg.transportType &&
-            last.originName == leg.originName && last.destinationName == leg.destinationName
+            last.originName == leg.originName && last.destinationName == leg.destinationName &&
+            last.difficulty == leg.difficulty && last.enjoyment == leg.enjoyment
         ) {
             groups[groups.lastIndex] = last.copy(endTime = leg.endTime, count = last.count + 1, legIds = last.legIds + leg.id)
         } else {
-            groups.add(LegGroup(leg.transportType, leg.originName, leg.destinationName, leg.startTime, leg.endTime, 1, listOf(leg.id)))
+            groups.add(LegGroup(leg.transportType, leg.originName, leg.destinationName, leg.startTime, leg.endTime, 1, listOf(leg.id), leg.difficulty, leg.enjoyment))
         }
     }
     return groups
@@ -343,6 +350,7 @@ private fun transportIcon(type: TransportType): ImageVector = when (type) {
     TransportType.BIKE -> Icons.Filled.DirectionsBike
     TransportType.MOTORBIKE -> Icons.Filled.TwoWheeler
     TransportType.CAR -> Icons.Filled.DirectionsCar
+    TransportType.FOUR_WD -> Icons.Filled.Terrain
     TransportType.BUS -> Icons.Filled.DirectionsBus
     TransportType.TRAIN -> Icons.Filled.Train
     TransportType.PLANE -> Icons.Filled.Flight
@@ -353,7 +361,7 @@ private fun transportIcon(type: TransportType): ImageVector = when (type) {
 @Composable
 private fun LegRow(group: LegGroup, onClick: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp)) {
-        Icon(transportIcon(group.transportType), contentDescription = group.transportType.name, modifier = Modifier.padding(end = 8.dp))
+        Icon(transportIcon(group.transportType), contentDescription = group.transportType.displayName(), modifier = Modifier.padding(end = 8.dp))
         Column {
             Text("${group.originName} → ${group.destinationName}" + if (group.count > 1) " (×${group.count})" else "")
             val dateFormat = DateFormat.getDateInstance(DateFormat.MEDIUM)
@@ -365,6 +373,16 @@ private fun LegRow(group: LegGroup, onClick: () -> Unit) {
                     " – " + (if (sameDay) "" else dateFormat.format(Date(it)) + ", ") + timeFormat.format(Date(it))
                 } ?: "")
             Text(timeRange, style = MaterialTheme.typography.bodySmall)
+            if (group.difficulty > 0 || group.enjoyment > 0) {
+                Text(
+                    buildString {
+                        if (group.difficulty > 0) append("Difficulty ${group.difficulty}/5")
+                        if (group.difficulty > 0 && group.enjoyment > 0) append("  ·  ")
+                        if (group.enjoyment > 0) append("Enjoyment ${starString(group.enjoyment)}")
+                    },
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
     }
 }
@@ -374,28 +392,62 @@ private fun SectionHeader(text: String) {
     Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
 }
 
-private fun TransportType.label() = name.lowercase().replaceFirstChar { it.uppercase() }
-
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TransportPickerDialog(selected: TransportType, onPick: (TransportType) -> Unit, onDismiss: () -> Unit) {
+private fun LegEditDialog(group: LegGroup, onSave: (TransportType, Int, Int) -> Unit, onDismiss: () -> Unit) {
+    var transport by remember(group) { mutableStateOf(group.transportType) }
+    var difficulty by remember(group) { mutableIntStateOf(group.difficulty) }
+    var enjoyment by remember(group) { mutableIntStateOf(group.enjoyment) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Change transport") },
+        title = { Text("Edit leg") },
         text = {
-            Column {
-                TransportType.entries.forEach { type ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { onPick(type) },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = type == selected, onClick = { onPick(type) })
-                        Icon(transportIcon(type), contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                        Text(type.label())
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text("Transport", style = MaterialTheme.typography.labelLarge)
+                FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                    TransportType.entries.forEach { type ->
+                        FilterChip(
+                            selected = transport == type,
+                            onClick = { transport = type },
+                            label = { Text(type.displayName()) },
+                            leadingIcon = { Icon(transportIcon(type), contentDescription = null, modifier = Modifier.size(18.dp)) }
+                        )
+                    }
+                }
+
+                Text(
+                    "Difficulty (1 easiest, 5 hardest)",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
+                FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                    for (level in 1..5) {
+                        // Tapping the selected level again clears it.
+                        FilterChip(
+                            selected = difficulty == level,
+                            onClick = { difficulty = if (difficulty == level) 0 else level },
+                            label = { Text("$level") }
+                        )
+                    }
+                }
+
+                Text("Enjoyment", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 16.dp))
+                Row {
+                    for (star in 1..5) {
+                        Icon(
+                            imageVector = if (star <= enjoyment) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                            contentDescription = "$star star" + if (star > 1) "s" else "",
+                            tint = if (star <= enjoyment) ratingColor(4)!! else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .clickable { enjoyment = if (enjoyment == star) 0 else star }
+                                .padding(6.dp)
+                        )
                     }
                 }
             }
         },
-        confirmButton = {},
+        confirmButton = { TextButton(onClick = { onSave(transport, difficulty, enjoyment) }) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
@@ -419,13 +471,13 @@ private fun BulkTransportDialog(
                 FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = from == null, onClick = { from = null }, label = { Text("All legs") })
                     presentTypes.forEach { type ->
-                        FilterChip(selected = from == type, onClick = { from = type }, label = { Text(type.label()) })
+                        FilterChip(selected = from == type, onClick = { from = type }, label = { Text(type.displayName()) })
                     }
                 }
                 Text("to", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp))
                 FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
                     TransportType.entries.forEach { type ->
-                        FilterChip(selected = to == type, onClick = { to = type }, label = { Text(type.label()) })
+                        FilterChip(selected = to == type, onClick = { to = type }, label = { Text(type.displayName()) })
                     }
                 }
             }

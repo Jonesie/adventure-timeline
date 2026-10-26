@@ -35,8 +35,11 @@ interface TravelDiaryDao {
     @Query("DELETE FROM trip_companions WHERE tripId = :tripId")
     suspend fun clearTripCompanions(tripId: Long)
 
-    @Query("UPDATE legs SET transportType = :type, transportEdited = 1 WHERE id IN (:legIds)")
-    suspend fun updateLegsTransport(legIds: List<Long>, type: TransportType)
+    @Query(
+        "UPDATE legs SET transportEdited = CASE WHEN transportType != :type THEN 1 ELSE transportEdited END, " +
+            "transportType = :type, difficulty = :difficulty, enjoyment = :enjoyment WHERE id IN (:legIds)"
+    )
+    suspend fun updateLegDetails(legIds: List<Long>, type: TransportType, difficulty: Int, enjoyment: Int)
 
     @Query("UPDATE legs SET transportType = :to, transportEdited = 1 WHERE tripId = :tripId")
     suspend fun updateAllTripLegsTransport(tripId: Long, to: TransportType)
@@ -44,7 +47,7 @@ interface TravelDiaryDao {
     @Query("UPDATE legs SET transportType = :to, transportEdited = 1 WHERE tripId = :tripId AND transportType = :from")
     suspend fun updateTripLegsTransport(tripId: Long, from: TransportType, to: TransportType)
 
-    @Query("SELECT * FROM legs WHERE tripId = :tripId AND transportEdited = 1")
+    @Query("SELECT * FROM legs WHERE tripId = :tripId AND (transportEdited = 1 OR difficulty > 0 OR enjoyment > 0)")
     suspend fun getEditedLegs(tripId: Long): List<Leg>
 
     @Query("DELETE FROM legs WHERE tripId = :tripId")
