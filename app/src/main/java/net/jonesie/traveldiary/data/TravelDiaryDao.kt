@@ -32,6 +32,20 @@ interface TravelDiaryDao {
     @Query("UPDATE trips SET rating = :rating WHERE id = :id")
     suspend fun updateTripRating(id: Long, rating: Int)
 
+    /**
+     * Trips that came within a radius of a point: any GPS trail point, leg endpoint, note or media
+     * location. Distances use a flat-earth approximation (longitude scaled by cos(latitude)),
+     * with [radiusSquared] in squared degrees — plenty accurate at trip-search scales.
+     */
+    @Query("""
+        SELECT DISTINCT tripId FROM route_points WHERE ((lat - :lat) * (lat - :lat) + ((lon - :lon) * :cosLat) * ((lon - :lon) * :cosLat)) < :radiusSquared UNION
+        SELECT DISTINCT tripId FROM legs WHERE originLat IS NOT NULL AND ((originLat - :lat) * (originLat - :lat) + ((originLon - :lon) * :cosLat) * ((originLon - :lon) * :cosLat)) < :radiusSquared UNION
+        SELECT DISTINCT tripId FROM legs WHERE destinationLat IS NOT NULL AND ((destinationLat - :lat) * (destinationLat - :lat) + ((destinationLon - :lon) * :cosLat) * ((destinationLon - :lon) * :cosLat)) < :radiusSquared UNION
+        SELECT DISTINCT tripId FROM impressions WHERE lat IS NOT NULL AND ((lat - :lat) * (lat - :lat) + ((lon - :lon) * :cosLat) * ((lon - :lon) * :cosLat)) < :radiusSquared UNION
+        SELECT DISTINCT tripId FROM media_items WHERE lat IS NOT NULL AND ((lat - :lat) * (lat - :lat) + ((lon - :lon) * :cosLat) * ((lon - :lon) * :cosLat)) < :radiusSquared
+    """)
+    suspend fun findTripIdsNear(lat: Double, lon: Double, cosLat: Double, radiusSquared: Double): List<Long>
+
     @Query("DELETE FROM trip_companions WHERE tripId = :tripId")
     suspend fun clearTripCompanions(tripId: Long)
 
@@ -79,6 +93,9 @@ interface TravelDiaryDao {
 
     @Insert
     suspend fun insertMediaItem(mediaItem: MediaItem): Long
+
+    @Query("SELECT tripId, type FROM media_items GROUP BY tripId, type")
+    fun observeTripMediaKinds(): Flow<List<TripMediaKind>>
 
     @Insert
     suspend fun insertMediaItems(items: List<MediaItem>)

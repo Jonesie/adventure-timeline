@@ -19,11 +19,23 @@ data class PlaceInfo(
     }
 }
 
+data class PlaceResult(val lat: Double, val lon: Double)
+
 /**
  * Best-effort place lookup. Needs network; callers should fall back to raw
  * coordinates when this returns null (offline, no result, or Geocoder unavailable).
  */
 object ReverseGeocoder {
+
+    /** Place name to coordinates, e.g. for "trips near Kaikōura". Null when offline or not found. */
+    @Suppress("DEPRECATION")
+    fun search(context: Context, query: String): PlaceResult? {
+        if (!Geocoder.isPresent()) return null
+        return runCatching {
+            Geocoder(context, Locale.getDefault()).getFromLocationName(query, 1)?.firstOrNull()
+                ?.let { PlaceResult(it.latitude, it.longitude) }
+        }.getOrNull()
+    }
 
     @Suppress("DEPRECATION")
     fun lookup(context: Context, lat: Double, lon: Double): PlaceInfo? {

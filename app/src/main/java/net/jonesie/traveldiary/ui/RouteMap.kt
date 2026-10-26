@@ -1,5 +1,6 @@
 package net.jonesie.traveldiary.ui
 
+import android.graphics.drawable.GradientDrawable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -18,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +45,8 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
+import java.text.DateFormat
+import java.util.Date
 
 /** A stretch of the route drawn in one colour. [level] is the leg's difficulty, 0 when not rated. */
 private data class RouteSegment(val points: List<GeoPoint>, val level: Int)
@@ -81,13 +90,43 @@ private fun segmentsFromLegs(legs: List<Leg>): List<RouteSegment> =
         if (points.isEmpty()) null else RouteSegment(points, leg.difficulty)
     }
 
+/** A stop along the route: where one leg ends and the next begins. */
+private data class Waypoint(val point: GeoPoint, val label: String, val time: Long?)
+
+private fun metersBetween(a: GeoPoint, b: GeoPoint): Double {
+    val dLat = Math.toRadians(b.latitude - a.latitude)
+    val dLon = Math.toRadians(b.longitude - a.longitude)
+    val h = Math.sin(dLat / 2).let { it * it } +
+        Math.cos(Math.toRadians(a.latitude)) * Math.cos(Math.toRadians(b.latitude)) * Math.sin(dLon / 2).let { it * it }
+    return 6_371_000.0 * 2 * Math.asin(Math.sqrt(h))
+}
+
+/**
+ * The trip's start plus the end of every leg, in order. Timeline splits one stop into several
+ * tiny legs, so a stop within 100 m of the previous one is skipped to keep the map readable.
+ */
+private fun buildWaypoints(legs: List<Leg>): List<Waypoint> {
+    val result = mutableListOf<Waypoint>()
+    fun add(lat: Double?, lon: Double?, label: String, time: Long?) {
+        if (lat == null || lon == null) return
+        val point = GeoPoint(lat, lon)
+        if (result.isNotEmpty() && metersBetween(result.last().point, point) < 100) return
+        result += Waypoint(point, label, time)
+    }
+    val sorted = legs.sortedBy { it.startTime }
+    sorted.firstOrNull { it.originLat != null }?.let { add(it.originLat, it.originLon, it.originName.ifBlank { "Start" }, it.startTime) }
+    sorted.forEach { add(it.destinationLat, it.destinationLon, it.destinationName.ifBlank { "Stop" }, it.endTime ?: it.startTime) }
+    return result
+}
+
 /** Remembers what the map currently shows, so a pinch-zoom isn't undone on recomposition. */
 private class RouteMapState {
     var drawn: List<RouteSegment>? = null
+    var drawnWaypoints: List<Waypoint>? = null
     var fittedTo: List<GeoPoint>? = null
 }
 
-private fun drawOverlays(mapView: MapView, segments: List<RouteSegment>, allPoints: List<GeoPoint>) {
+private fun drawOverlays(mapView: MapView, segments: List<RouteSegment>, allPoints: List<GeoPoint>, waypoints: List<Waypoint>) {
     val density = mapView.resources.displayMetrics.density
     mapView.overlays.clear()
 
@@ -106,6 +145,25 @@ private fun drawOverlays(mapView: MapView, segments: List<RouteSegment>, allPoin
             outlinePaint.color = color?.toArgb() ?: android.graphics.Color.BLACK
             outlinePaint.strokeWidth = (if (color != null) 4f else 3.5f) * density
         })
+    }
+
+    if (waypoints.isNotEmpty()) {
+        val dot = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(android.graphics.Color.WHITE)
+            setStroke((2 * density).toInt(), 0xFF333333.toInt())
+            setSize((14 * density).toInt(), (14 * density).toInt())
+        }
+        val timeFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+        waypoints.forEachIndexed { index, waypoint ->
+            mapView.overlays.add(Marker(mapView).apply {
+                position = waypoint.point
+                icon = dot
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                title = "${index + 1}. ${waypoint.label}"
+                snippet = waypoint.time?.let { timeFormat.format(Date(it)) }
+            })
+        }
     }
 
     allPoints.firstOrNull()?.let { start ->
@@ -144,6 +202,10 @@ fun RouteMap(
     val allPoints = remember(segments) { segments.flatMap { it.points } }
     if (allPoints.isEmpty()) return
 
+    val waypoints = remember(legs) { buildWaypoints(legs) }
+    var showWaypoints by rememberSaveable { mutableStateOf(false) }
+    val shownWaypoints = if (showWaypoints) waypoints else emptyList()
+
     val state = remember { RouteMapState() }
 
     // clipToBounds: osmdroid scales its canvas during zoom, and Compose's AndroidView host
@@ -159,9 +221,10 @@ fun RouteMap(
                 }
             },
             update = { mapView ->
-                if (state.drawn != segments) {
-                    drawOverlays(mapView, segments, allPoints)
+                if (state.drawn != segments || state.drawnWaypoints != shownWaypoints) {
+                    drawOverlays(mapView, segments, allPoints, shownWaypoints)
                     state.drawn = segments
+                    state.drawnWaypoints = shownWaypoints
                     // Only re-fit when the route itself changed, not when just a rating did.
                     if (state.fittedTo != allPoints) {
                         state.fittedTo = allPoints
@@ -170,6 +233,18 @@ fun RouteMap(
                 }
             }
         )
+        if (waypoints.isNotEmpty()) {
+            FilterChip(
+                selected = showWaypoints,
+                onClick = { showWaypoints = !showWaypoints },
+                label = { Text("Waypoints") },
+                leadingIcon = { Icon(Icons.Filled.Place, contentDescription = null) },
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                ),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)
+            )
+        }
         if (segments.any { it.level > 0 }) {
             DifficultyLegend(
                 showUnrated = segments.any { it.level == 0 },

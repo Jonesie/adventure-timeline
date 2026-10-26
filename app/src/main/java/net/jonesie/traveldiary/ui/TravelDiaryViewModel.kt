@@ -11,6 +11,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -42,6 +43,10 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
 
     val trips: StateFlow<List<Trip>> = dao.observeTrips()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val mediaKindsByTrip: StateFlow<Map<Long, Set<MediaType>>> = dao.observeTripMediaKinds()
+        .map { rows -> rows.groupBy({ it.tripId }, { it.type }).mapValues { it.value.toSet() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     fun tripDetail(tripId: Long): Flow<TripDetail?> = dao.observeTripDetail(tripId)
 
@@ -323,6 +328,11 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
             dao.deleteMediaItem(item.id)
             withContext(Dispatchers.IO) { MediaFiles.deleteIfOwned(getApplication(), item.uri) }
         }
+    }
+
+    suspend fun tripIdsNear(lat: Double, lon: Double, radiusKm: Double): Set<Long> {
+        val radiusDegrees = radiusKm / 111.32
+        return dao.findTripIdsNear(lat, lon, Math.cos(Math.toRadians(lat)), radiusDegrees * radiusDegrees).toSet()
     }
 
     fun setTripRating(tripId: Long, rating: Int) {

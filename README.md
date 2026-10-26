@@ -9,13 +9,17 @@ All data is stored on the device (Room/SQLite). Nothing is synced anywhere yet.
 ## Features
 
 - **Trips** with dates, notes, free-text companions and a 1-5 star rating. Rated trips are
-  coloured on the diary list (1 star dark red through to 5 stars yellow).
+  coloured on the diary list (1 star dark red through to 5 stars yellow). The list also shows icons for
+  trips that have photos/videos or voice notes.
+- **Search** the diary by title, by place name, or near your current location. Place and location
+  searches list trips whose route, stops, notes or media came within 1, 5 or 25 km.
 - **Trip screen with four tabs**: Overview (dates, rating, route map, companions), Legs, Media, Notes.
 - **Legs** with a transport type (walk, bike, motorbike, car, 4WD, bus, train, plane, boat, other),
   plus a difficulty (1-5) and an enjoyment (1-5 stars). Edit a single leg, or change the transport for
   every leg of a type across a whole trip.
 - **Route map** (OpenStreetMap via osmdroid) drawn from the recorded GPS trail, with a full-screen view.
   Rated legs are coloured by difficulty (green easiest to purple hardest), with a legend.
+  An optional "Waypoints" toggle (off by default) marks each stop with its name and time.
 - **Photos, videos and audio**: capture with the camera or microphone, pick from anywhere on the phone
   (the picker opens on the trip's dates), or auto-add everything your camera shot during the trip's dates (`DCIM/Camera` only). Shown as
   a thumbnail gallery with full-screen viewing and in-app playback.

@@ -37,3 +37,9 @@ data class TripDetail(
     @Relation(parentColumn = "id", entityColumn = "tripId")
     val impressions: List<Impression>
 )
+
+/** One row per (trip, kind of media) pair, so the diary list can show photo/video and audio icons. */
+data class TripMediaKind(
+    val tripId: Long,
+    val type: MediaType
+)
