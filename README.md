@@ -67,8 +67,6 @@ The app works offline. It only uses the network to fetch map tiles and to look u
 ## Status and not built yet
 
 - Syncing to a private, self-hosted store (planned instead of a third-party cloud).
-- Hands-free listening that notices a spoken moment and prompts for a photo, and answering
-  "have I been here before?" by voice.
 - Matching companions against Google Contacts.
 
 ## Notes for developers
