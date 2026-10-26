@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -237,14 +238,26 @@ fun AllTripsMapScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onOpe
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    // Selected chips are solid and carry a tick, so it's obvious what is being shown.
                     val chipColors = FilterChipDefaults.filterChipColors(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                        selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
                     )
+                    val tick: @Composable () -> Unit = { Icon(Icons.Filled.Check, contentDescription = null) }
                     FilterChip(
                         selected = showWaypoints,
                         onClick = { showWaypoints = !showWaypoints },
                         label = { Text("Waypoints") },
-                        leadingIcon = { Icon(Icons.Filled.Place, contentDescription = null) },
+                        leadingIcon = if (showWaypoints) tick else { { Icon(Icons.Filled.Place, contentDescription = null) } },
+                        colors = chipColors
+                    )
+                    FilterChip(
+                        selected = types.isEmpty(),
+                        onClick = { types = emptySet() },
+                        label = { Text("All transport") },
+                        leadingIcon = if (types.isEmpty()) tick else null,
                         colors = chipColors
                     )
                     presentTypes.forEach { type ->
@@ -252,6 +265,7 @@ fun AllTripsMapScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onOpe
                             selected = type in types,
                             onClick = { types = if (type in types) types - type else types + type },
                             label = { Text(type.displayName()) },
+                            leadingIcon = if (type in types) tick else null,
                             colors = chipColors
                         )
                     }
