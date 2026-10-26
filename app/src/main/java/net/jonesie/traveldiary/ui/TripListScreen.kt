@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -78,6 +79,7 @@ fun TripListScreen(
 ) {
     val trips by viewModel.trips.collectAsState()
     val mediaKinds by viewModel.mediaKindsByTrip.collectAsState()
+    val backupSettings by viewModel.backupSettings.collectAsState()
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -192,6 +194,13 @@ fun TripListScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (backupSettings.reminderDue(trips.isNotEmpty())) {
+                BackupReminderCard(
+                    lastBackup = backupSettings.lastBackup,
+                    onBackUp = onOpenSettings,
+                    onLater = { viewModel.snoozeBackupReminder() }
+                )
+            }
             if (searching) {
                 TripSearchPanel(
                     mode = mode,
@@ -218,6 +227,27 @@ fun TripListScreen(
                         TripRow(trip, kinds = mediaKinds[trip.id].orEmpty(), onClick = { onOpenTrip(trip.id) })
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackupReminderCard(lastBackup: Long?, onBackUp: () -> Unit, onLater: () -> Unit) {
+    val message = if (lastBackup == null) "Your diary has never been backed up."
+    else {
+        val days = ((System.currentTimeMillis() - lastBackup) / BackupSettings.DAY_MS).toInt()
+        "Your last backup was $days days ago."
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp)) {
+            Text(message)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onLater) { Text("Remind me in a week") }
+                TextButton(onClick = onBackUp) { Text("Back up") }
             }
         }
     }

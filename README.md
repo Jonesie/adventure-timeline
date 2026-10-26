@@ -26,6 +26,10 @@ All data is stored on the device (Room/SQLite). Nothing is synced automatically;
 - **Settings**: back up the whole diary (trips, routes, notes, attached files) to one zip you save
   anywhere, e.g. Drive, and restore from it (restore replaces the current diary). "Free up space"
   swaps duplicate imported copies for links to the originals in the gallery. Also holds "Delete all trips".
+  Backups are built locally, checked, then copied to the chosen place, and the dialog shows the
+  expected size. Photos/videos from the gallery stay linked (not copied) unless you tick the
+  camera-roll option, which can need tens of GB free. A reminder card appears on the diary list when
+  a backup is due (7/14/30 days or off).
 - **Notes**: quick timestamped impressions, tagged with your location when available.
 - **Google Timeline import**: pulls the trips Google has already detected, with their legs, transport
   and route. Re-importing updates existing trips in place and keeps your manual changes

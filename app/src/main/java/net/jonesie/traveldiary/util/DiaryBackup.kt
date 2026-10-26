@@ -40,7 +40,7 @@ object DiaryBackup {
     private const val JSON_ENTRY = "diary.json"
     private const val MEDIA_PREFIX = "media/"
 
-    class ExportSummary(val trips: Int, val files: Int, val linkedOnly: Int)
+    class ExportSummary(val trips: Int, val files: Int, val linkedOnly: Int, val bytes: Long, val savedBytes: Long?)
     class RestoreSummary(val trips: Int, val files: Int, val skipped: Int)
 
     // ---------------------------------------------------------------- export
@@ -54,7 +54,10 @@ object DiaryBackup {
         val dao = TravelDiaryDatabase.get(context).dao()
         val resolver = context.contentResolver
 
-        onProgress("Reading diary…")
+        var stage = "starting"
+        val progress: (String) -> Unit = { stage = it; onProgress(it) }
+        try {
+        progress("Reading diary…")
         val trips = dao.getAllTrips()
         val media = dao.getAllMedia()
 
@@ -70,11 +73,21 @@ object DiaryBackup {
             }
         }
 
-        val output = resolver.openOutputStream(target, "wt") ?: error("Couldn't open the chosen file")
+        if (includeCameraRoll) {
+            val needed = estimate(context).let { it.appFilesBytes + it.cameraRollBytes }
+            if (needed > freeBytes(context)) {
+                error("This backup would be about ${gb(needed)} but the phone has only ${gb(freeBytes(context))} free. " +
+                    "Untick the camera-roll option, or free up space.")
+            }
+        }
+
+        // Build the zip locally first: cloud destinations like Drive can't be trusted to report a
+        // failed write, so the finished file is checked and then copied across as a separate step.
+        val temp = File(context.cacheDir, "backup-in-progress.zip").apply { delete() }
         var files = 0
         var linkedOnly = 0
         try {
-        ZipOutputStream(BufferedOutputStream(output)).use { zip ->
+        ZipOutputStream(BufferedOutputStream(temp.outputStream())).use { zip ->
             zip.putNextEntry(ZipEntry(JSON_ENTRY))
             val writer = JsonWriter(OutputStreamWriter(zip, Charsets.UTF_8))
             writer.beginObject()
@@ -150,7 +163,7 @@ object DiaryBackup {
             trips.forEachIndexed { index, t ->
                 val points = dao.getRoutePointsForTrip(t.id)
                 if (points.isNotEmpty()) {
-                    onProgress("Saving routes… ${index + 1} of ${trips.size}")
+                    progress("Saving routes… ${index + 1} of ${trips.size}")
                     writer.beginObject()
                     writer.put("tripId", t.id)
                     writer.name("points").beginArray()
@@ -174,7 +187,7 @@ object DiaryBackup {
             val toCopy = plans.filter { it.entryName != null }
             linkedOnly = plans.count { it.entryName == null }
             toCopy.forEachIndexed { index, p ->
-                onProgress("Saving media… ${index + 1} of ${toCopy.size}")
+                progress("Saving media… ${index + 1} of ${toCopy.size}")
                 val input = if (p.owned != null) p.owned.inputStream()
                 else resolver.openInputStream(Uri.parse(p.item.uri))
                 if (input == null) {
@@ -187,13 +200,29 @@ object DiaryBackup {
                 files++
             }
         }
+        val bytes = temp.length()
+        check(bytes > 0) { "The backup file came out empty" }
+        java.util.zip.ZipFile(temp).use { zf -> check(zf.getEntry(JSON_ENTRY) != null) { "The backup file is incomplete" } }
+
+        progress("Saving to the chosen location…")
+        try {
+            val output = resolver.openOutputStream(target, "wt") ?: error("Couldn't open the chosen file")
+            temp.inputStream().use { input -> output.use { out -> input.copyTo(out); out.flush() } }
         } catch (e: Throwable) {
-            // Don't leave a half-written zip behind that looks like a real backup.
+            // Don't leave a half-written file behind that looks like a real backup.
             runCatching { DocumentsContract.deleteDocument(resolver, target) }
             throw e
         }
-        ExportSummary(trips = trips.size, files = files, linkedOnly = linkedOnly)
+        ExportSummary(trips = trips.size, files = files, linkedOnly = linkedOnly, bytes = bytes, savedBytes = sizeOf(context, target))
+        } finally {
+            temp.delete()
+        }
+        } catch (e: java.io.IOException) {
+            throw java.io.IOException("while \"$stage\": ${e.message}", e)
+        }
     }
+
+    private fun gb(bytes: Long) = "%.1f GB".format(bytes / 1e9)
 
     // --------------------------------------------------------------- restore
 
@@ -211,8 +240,12 @@ object DiaryBackup {
 
     suspend fun restore(context: Context, source: Uri, onProgress: (String) -> Unit): RestoreSummary =
         withContext(Dispatchers.IO) {
+            var stage = "starting"
+            val progress: (String) -> Unit = { stage = it; onProgress(it) }
+            try {
             val db = TravelDiaryDatabase.get(context)
             val dao = db.dao()
+            if (sizeOf(context, source) == 0L) error("That file is empty (0 bytes), so there is nothing to restore")
             val mediaDir = MediaFiles.mediaDir(context)
             val staging = File(mediaDir.parentFile, "media_restore").apply { deleteRecursively(); mkdirs() }
 
@@ -226,7 +259,7 @@ object DiaryBackup {
                         when {
                             entry.isDirectory -> Unit
                             entry.name == JSON_ENTRY -> {
-                                onProgress("Reading diary…")
+                                progress("Reading diary…")
                                 parsed = parse(zip)
                             }
                             entry.name.startsWith(MEDIA_PREFIX) -> {
@@ -234,7 +267,7 @@ object DiaryBackup {
                                 val name = entry.name.removePrefix(MEDIA_PREFIX)
                                 if (name.isNotEmpty() && '/' !in name && '\\' !in name && name != "..") {
                                     extracted++
-                                    onProgress("Restoring media… $extracted")
+                                    progress("Restoring media… $extracted")
                                     File(staging, name).outputStream().use { zip.copyTo(it) }
                                 }
                             }
@@ -243,7 +276,7 @@ object DiaryBackup {
                 }
                 val data = parsed ?: error("This isn't a Travel Diary backup")
 
-                onProgress("Restoring trips…")
+                progress("Restoring trips…")
                 var skipped = 0
                 val mediaItems = data.media.mapNotNull { m ->
                     if (m.file != null) {
@@ -274,6 +307,9 @@ object DiaryBackup {
                 RestoreSummary(trips = data.trips.size, files = data.media.count { it.file != null } - skipped, skipped = skipped)
             } finally {
                 staging.deleteRecursively()
+            }
+            } catch (e: java.io.IOException) {
+                throw java.io.IOException("while \"$stage\": ${e.message}", e)
             }
         }
 
@@ -373,6 +409,29 @@ object DiaryBackup {
         if (format > FORMAT) error("This backup was made by a newer version of the app")
         return Parsed(trips, companions, crossRefs, legs, media, impressions, routes)
     }
+
+    class Estimate(val appFilesBytes: Long, val cameraRollBytes: Long)
+
+    /** How big a backup will be: files the app owns, plus (optionally) camera-roll items it links to. */
+    suspend fun estimate(context: Context): Estimate = withContext(Dispatchers.IO) {
+        var owned = 0L
+        var linked = 0L
+        TravelDiaryDatabase.get(context).dao().getAllMedia().forEach { item ->
+            val file = MediaFiles.ownedFile(context, item.uri)
+            if (file != null) owned += file.length()
+            else linked += sizeOf(context, Uri.parse(item.uri)) ?: 0L
+        }
+        Estimate(owned, linked)
+    }
+
+    fun freeBytes(context: Context): Long = context.cacheDir.usableSpace
+
+    /** Size the destination reports for [uri], or null if it doesn't say. */
+    fun sizeOf(context: Context, uri: Uri): Long? = runCatching {
+        context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.SIZE), null, null, null)?.use {
+            if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null
+        }
+    }.getOrNull()
 
     // ----------------------------------------------------------- json helpers
 

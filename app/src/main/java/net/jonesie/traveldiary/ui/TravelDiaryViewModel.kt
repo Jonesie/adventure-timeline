@@ -379,9 +379,38 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch { dao.deleteTripById(tripId) }
     }
 
+    private val prefs = application.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+
+    private fun loadBackupSettings() = BackupSettings(
+        lastBackup = prefs.getLong("lastBackup", 0L).takeIf { it > 0 },
+        reminderDays = prefs.getInt("reminderDays", 14),
+        snoozedUntil = prefs.getLong("snoozedUntil", 0L)
+    )
+
+    private val _backupSettings = MutableStateFlow(loadBackupSettings())
+    val backupSettings: StateFlow<BackupSettings> = _backupSettings.asStateFlow()
+
+    /** 0 turns the reminder off. */
+    fun setReminderDays(days: Int) {
+        prefs.edit().putInt("reminderDays", days).apply()
+        _backupSettings.value = loadBackupSettings()
+    }
+
+    fun snoozeBackupReminder(days: Int = 7) {
+        prefs.edit().putLong("snoozedUntil", System.currentTimeMillis() + days * BackupSettings.DAY_MS).apply()
+        _backupSettings.value = loadBackupSettings()
+    }
+
+    private fun recordBackupDone() {
+        prefs.edit().putLong("lastBackup", System.currentTimeMillis()).putLong("snoozedUntil", 0L).apply()
+        _backupSettings.value = loadBackupSettings()
+    }
+
     private val _backupProgress = MutableStateFlow<String?>(null)
     /** Non-null while a backup or restore is running; the text says where it's up to. */
     val backupProgress: StateFlow<String?> = _backupProgress.asStateFlow()
+
+    suspend fun backupEstimate(): DiaryBackup.Estimate = DiaryBackup.estimate(getApplication())
 
     fun exportBackup(target: Uri, includeCameraRoll: Boolean, onDone: (String) -> Unit) {
         if (_backupProgress.value != null) return
@@ -391,8 +420,12 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
                 DiaryBackup.export(getApplication(), target, includeCameraRoll) { _backupProgress.value = it }
             }.fold(
                 onSuccess = {
+                    recordBackupDone()
                     buildString {
-                        append("Backed up ${it.trips} trips and ${it.files} photo/video/audio files.")
+                        append("Backed up ${it.trips} trips and ${it.files} photo/video/audio files (${formatBytes(it.bytes)}).")
+                        if (it.savedBytes == null || it.savedBytes != it.bytes) {
+                            append(" The destination reports ${it.savedBytes?.let(::formatBytes) ?: "no size"}. If that's Google Drive it may still be uploading — check the file there before relying on it.")
+                        }
                         if (it.linkedOnly > 0) append(" ${it.linkedOnly} camera-roll items were not included; they stay in your gallery.")
                     }
                 },
@@ -434,12 +467,27 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
     }
 }
 
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1_000_000_000 -> "%.1f GB".format(bytes / 1e9)
+    bytes >= 1_000_000 -> "%.1f MB".format(bytes / 1e6)
+    else -> "%d KB".format(bytes / 1000)
+}
+
 private fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
     val dLat = Math.toRadians(lat2 - lat1)
     val dLon = Math.toRadians(lon2 - lon1)
     val a = Math.sin(dLat / 2).let { it * it } +
         Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) * Math.sin(dLon / 2).let { it * it }
     return 6371.0 * 2 * Math.asin(Math.sqrt(a))
+}
+
+data class BackupSettings(val lastBackup: Long?, val reminderDays: Int, val snoozedUntil: Long) {
+    /** True when the diary has data and the user is due (or has never had) a backup. */
+    fun reminderDue(hasTrips: Boolean, now: Long = System.currentTimeMillis()): Boolean =
+        hasTrips && reminderDays > 0 && now >= snoozedUntil &&
+            (lastBackup == null || now - lastBackup >= reminderDays * DAY_MS)
+
+    companion object { const val DAY_MS = 24L * 60 * 60 * 1000 }
 }
 
 data class MediaImportProgress(val done: Int, val total: Int)

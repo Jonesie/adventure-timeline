@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
@@ -27,11 +28,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,7 +45,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import net.jonesie.traveldiary.util.DiaryBackup
 import net.jonesie.traveldiary.util.DuplicateCopies
+import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -51,8 +56,17 @@ import java.util.Locale
 @Composable
 fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
     val progress by viewModel.backupProgress.collectAsState()
-    var showBackupOptions by remember { mutableStateOf(false) }
+    val backupSettings by viewModel.backupSettings.collectAsState()
+    var showReminderOptions by remember { mutableStateOf(false) }
     var includeCameraRoll by remember { mutableStateOf(false) }
+    var showBackupOptions by remember { mutableStateOf(false) }
+    var estimate by remember { mutableStateOf<DiaryBackup.Estimate?>(null) }
+    LaunchedEffect(showBackupOptions) {
+        if (showBackupOptions) {
+            includeCameraRoll = false
+            estimate = viewModel.backupEstimate()
+        }
+    }
     var confirmRestore by remember { mutableStateOf(false) }
     var confirmDeleteAll by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<String?>(null) }
@@ -83,8 +97,16 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
             SettingRow(
                 icon = { Icon(Icons.Filled.Save, contentDescription = null) },
                 title = "Back up diary",
-                subtitle = "Save every trip, route, note and attached file to one zip. Put it on Drive or your computer.",
+                subtitle = "Save every trip, route, note and attached file to one zip. Put it on Drive or your computer.\n" +
+                    (backupSettings.lastBackup?.let { "Last backed up ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))}" }
+                        ?: "Never backed up"),
                 onClick = { showBackupOptions = true }
+            )
+            SettingRow(
+                icon = { Icon(Icons.Filled.Notifications, contentDescription = null) },
+                title = "Backup reminder",
+                subtitle = if (backupSettings.reminderDays == 0) "Off" else "Remind me every ${backupSettings.reminderDays} days",
+                onClick = { showReminderOptions = true }
             )
             SettingRow(
                 icon = { Icon(Icons.Filled.Restore, contentDescription = null) },
@@ -121,12 +143,22 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
             text = {
                 Column {
                     Text("Trips, routes, legs, ratings, notes, voice notes and photos or videos you took or imported through the app are always included.")
+                    estimate?.let {
+                        Text(
+                            "Backup size: about " + sizeText(it.appFilesBytes + if (includeCameraRoll) it.cameraRollBytes else 0L) + ".",
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth().clickable { includeCameraRoll = !includeCameraRoll }.padding(top = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(checked = includeCameraRoll, onCheckedChange = { includeCameraRoll = it })
-                        Text("Also copy camera-roll photos and videos added to trips. Makes the file much bigger.")
+                        Text(
+                            "Also copy camera-roll photos and videos added to trips" +
+                                (estimate?.let { " (adds " + sizeText(it.cameraRollBytes) + ")" } ?: "") +
+                                ". They are normally left in your gallery."
+                        )
                     }
                 }
             },
@@ -137,6 +169,30 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
                 }) { Text("Choose where to save") }
             },
             dismissButton = { TextButton(onClick = { showBackupOptions = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showReminderOptions) {
+        AlertDialog(
+            onDismissRequest = { showReminderOptions = false },
+            title = { Text("Backup reminder") },
+            text = {
+                Column {
+                    listOf(7 to "Every 7 days", 14 to "Every 14 days", 30 to "Every 30 days", 0 to "Off").forEach { (days, label) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                viewModel.setReminderDays(days)
+                                showReminderOptions = false
+                            },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = backupSettings.reminderDays == days, onClick = null, modifier = Modifier.padding(12.dp))
+                            Text(label)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showReminderOptions = false }) { Text("Close") } }
         )
     }
 
@@ -215,6 +271,12 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
             confirmButton = { TextButton(onClick = { result = null }) { Text("OK") } }
         )
     }
+}
+
+private fun sizeText(bytes: Long): String = when {
+    bytes >= 1_000_000_000 -> "%.1f GB".format(bytes / 1e9)
+    bytes >= 1_000_000 -> "%.0f MB".format(bytes / 1e6)
+    else -> "under 1 MB"
 }
 
 @Composable
