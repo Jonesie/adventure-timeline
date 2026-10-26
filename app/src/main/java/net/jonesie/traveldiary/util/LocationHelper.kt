@@ -17,6 +17,37 @@ object LocationHelper {
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
+    /**
+     * A recent fix if there is one, otherwise asks for a fresh one; falls back to the last known
+     * location if that fails. [onResult] runs on the main thread, with null if nothing is available.
+     */
+    fun locate(context: Context, onResult: (Location?) -> Unit) {
+        if (!hasPermission(context)) {
+            onResult(null)
+            return
+        }
+        val last = lastKnownLocation(context)
+        if (last != null && System.currentTimeMillis() - last.time < 2 * 60_000) {
+            onResult(last)
+            return
+        }
+        val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val provider: String? = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            .firstOrNull { runCatching { manager.isProviderEnabled(it) }.getOrDefault(false) }
+        if (provider == null) {
+            onResult(last)
+            return
+        }
+        val consumer = androidx.core.util.Consumer<Location?> { fresh -> onResult(fresh ?: last) }
+        try {
+            androidx.core.location.LocationManagerCompat.getCurrentLocation(
+                manager, provider, null as android.os.CancellationSignal?, ContextCompat.getMainExecutor(context), consumer
+            )
+        } catch (e: Exception) {
+            onResult(last)
+        }
+    }
+
     fun lastKnownLocation(context: Context): Location? {
         if (!hasPermission(context)) return null
         val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager

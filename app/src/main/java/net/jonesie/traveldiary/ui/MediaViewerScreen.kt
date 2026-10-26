@@ -5,7 +5,30 @@ import android.media.MediaPlayer
 import android.net.Uri
 import android.view.Surface
 import android.view.TextureView
+import android.Manifest
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.Place
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import net.jonesie.traveldiary.util.MediaLocation
+import net.jonesie.traveldiary.util.ReverseGeocoder
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
+import coil.request.ImageRequest
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -89,6 +112,26 @@ private fun MediaViewer(items: List<MediaItem>, startIndex: Int, onDelete: (Medi
     val current = items[pagerState.currentPage.coerceIn(0, items.size - 1)]
     val imageLoader = rememberMediaImageLoader()
 
+    // Where the current photo/video was taken. Gallery items only reveal it once the user
+    // allows access to location info in photos.
+    val context = LocalContext.current
+    var mediaLocationGranted by remember { mutableStateOf(0) }
+    val askMediaLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { mediaLocationGranted++ }
+    LaunchedEffect(Unit) {
+        if (MediaLocation.needsPermission(context, current)) askMediaLocation.launch(Manifest.permission.ACCESS_MEDIA_LOCATION)
+    }
+    var location by remember { mutableStateOf<MediaLocation.LatLon?>(null) }
+    var place by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(current.id, mediaLocationGranted) {
+        location = null
+        place = null
+        val found = withContext(Dispatchers.IO) { MediaLocation.read(context, current) }
+        location = found
+        if (found != null) {
+            place = withContext(Dispatchers.IO) { ReverseGeocoder.lookup(context, found.lat, found.lon)?.format(overseas = true) }
+        }
+    }
+
     Scaffold(
         containerColor = Color.Black,
         topBar = {
@@ -109,12 +152,35 @@ private fun MediaViewer(items: List<MediaItem>, startIndex: Int, onDelete: (Medi
             HorizontalPager(state = pagerState, modifier = Modifier.weight(1f).fillMaxSize()) { page ->
                 items.getOrNull(page)?.let { MediaPage(it, imageLoader) }
             }
-            Text(
-                DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(current.timestamp)),
-                color = Color.White,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(16.dp)
-            )
+            Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                Text(
+                    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(current.timestamp)),
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                location?.let { loc ->
+                    val coords = "%.4f°, %.4f°".format(loc.lat, loc.lon)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 6.dp).clickable {
+                            val label = Uri.encode(place ?: coords)
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse("geo:${loc.lat},${loc.lon}?q=${loc.lat},${loc.lon}($label)"))
+                                )
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Filled.Place, contentDescription = "Open location in maps", tint = Color.White, modifier = Modifier.size(18.dp))
+                        Text(
+                            (place?.let { "$it  ·  " } ?: "") + coords,
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -143,13 +209,17 @@ private fun MediaPage(item: MediaItem, imageLoader: coil.ImageLoader) {
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         when {
-            item.type == MediaType.PHOTO -> AsyncImage(
-                model = uri,
-                imageLoader = imageLoader,
-                contentDescription = "photo",
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize()
-            )
+            item.type == MediaType.PHOTO -> ZoomableBox(modifier = Modifier.fillMaxSize()) {
+                // Decode at up to 3000 px so there is real detail to zoom into.
+                val request = ImageRequest.Builder(LocalContext.current).data(uri).size(3000).build()
+                AsyncImage(
+                    model = request,
+                    imageLoader = imageLoader,
+                    contentDescription = "photo",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
             playing -> InAppPlayer(uri, isVideo = item.type == MediaType.VIDEO)
             else -> {
                 if (item.type == MediaType.VIDEO) {
@@ -175,6 +245,55 @@ private fun MediaPage(item: MediaItem, imageLoader: coil.ImageLoader) {
             }
         }
     }
+}
+
+/**
+ * Pinch to zoom, drag to pan while zoomed, double-tap to toggle. A one-finger drag is only
+ * taken while zoomed in, so swiping between photos still works at normal size.
+ */
+@Composable
+private fun ZoomableBox(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var size by remember { mutableStateOf(IntSize.Zero) }
+
+    fun clamp(o: Offset, s: Float): Offset {
+        val maxX = (size.width * (s - 1f)) / 2f
+        val maxY = (size.height * (s - 1f)) / 2f
+        return Offset(o.x.coerceIn(-maxX, maxX), o.y.coerceIn(-maxY, maxY))
+    }
+
+    Box(
+        modifier = modifier
+            .onSizeChanged { size = it }
+            .pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = {
+                    if (scale > 1f) { scale = 1f; offset = Offset.Zero } else scale = 2.5f
+                })
+            }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        val fingers = event.changes.count { it.pressed }
+                        if (fingers >= 2 || scale > 1f) {
+                            val newScale = (scale * event.calculateZoom()).coerceIn(1f, 6f)
+                            scale = newScale
+                            offset = if (newScale == 1f) Offset.Zero else clamp(offset + event.calculatePan(), newScale)
+                            event.changes.forEach { if (it.positionChanged()) it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            }
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                translationX = offset.x
+                translationY = offset.y
+            },
+        contentAlignment = Alignment.Center
+    ) { content() }
 }
 
 private fun formatMs(ms: Int): String = "%d:%02d".format(ms / 60000, (ms / 1000) % 60)

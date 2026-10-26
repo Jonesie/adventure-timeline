@@ -38,6 +38,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.doOnLayout
 import net.jonesie.traveldiary.data.Leg
 import net.jonesie.traveldiary.data.RoutePoint
+import net.jonesie.traveldiary.data.TransportType
+import net.jonesie.traveldiary.util.RouteShape
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
@@ -49,7 +51,7 @@ import java.text.DateFormat
 import java.util.Date
 
 /** A stretch of the route drawn in one colour. [level] is the leg's difficulty, 0 when not rated. */
-private data class RouteSegment(val points: List<GeoPoint>, val level: Int)
+private data class RouteSegment(val points: List<GeoPoint>, val level: Int, val dashed: Boolean = false)
 
 /**
  * Splits the recorded GPS trail wherever the leg underneath it changes difficulty. Each piece
@@ -61,8 +63,15 @@ private fun segmentsFromTrail(trail: List<RoutePoint>, legs: List<Leg>): List<Ro
     var current = mutableListOf<GeoPoint>()
     var currentLevel = 0
     var legIndex = 0
+    var previous: RoutePoint? = null
 
     for (point in trail.sortedBy { it.timestamp }) {
+        // Don't draw a straight line across a stretch the phone never tracked.
+        if (previous != null && RouteShape.isGap(previous, point)) {
+            if (current.size > 1) segments += RouteSegment(current, currentLevel)
+            current = mutableListOf()
+        }
+        previous = point
         while (legIndex < timedLegs.size && timedLegs[legIndex].endTime!! < point.timestamp) legIndex++
         val leg = timedLegs.getOrNull(legIndex)?.takeIf { it.startTime <= point.timestamp }
         val level = leg?.difficulty ?: 0
@@ -77,6 +86,13 @@ private fun segmentsFromTrail(trail: List<RoutePoint>, legs: List<Leg>): List<Ro
     if (current.size > 1 || (current.isNotEmpty() && segments.isEmpty())) {
         segments += RouteSegment(current, currentLevel)
     }
+    // A flight has little or no trail; a dashed straight line is the honest way to show it.
+    RouteShape.sparseLegs(trail, legs, TransportType.PLANE).forEach { leg ->
+        segments += RouteSegment(
+            listOf(GeoPoint(leg.originLat!!, leg.originLon!!), GeoPoint(leg.destinationLat!!, leg.destinationLon!!)),
+            leg.difficulty, dashed = true
+        )
+    }
     return segments
 }
 
@@ -87,11 +103,11 @@ private fun segmentsFromLegs(legs: List<Leg>): List<RouteSegment> =
             if (leg.originLat != null && leg.originLon != null) GeoPoint(leg.originLat, leg.originLon) else null,
             if (leg.destinationLat != null && leg.destinationLon != null) GeoPoint(leg.destinationLat, leg.destinationLon) else null
         )
-        if (points.isEmpty()) null else RouteSegment(points, leg.difficulty)
+        if (points.isEmpty()) null else RouteSegment(points, leg.difficulty, dashed = true)
     }
 
 /** A stop along the route: where one leg ends and the next begins. */
-private data class Waypoint(val point: GeoPoint, val label: String, val time: Long?)
+internal data class Waypoint(val point: GeoPoint, val label: String, val time: Long?)
 
 private fun metersBetween(a: GeoPoint, b: GeoPoint): Double {
     val dLat = Math.toRadians(b.latitude - a.latitude)
@@ -105,7 +121,7 @@ private fun metersBetween(a: GeoPoint, b: GeoPoint): Double {
  * The trip's start plus the end of every leg, in order. Timeline splits one stop into several
  * tiny legs, so a stop within 100 m of the previous one is skipped to keep the map readable.
  */
-private fun buildWaypoints(legs: List<Leg>): List<Waypoint> {
+internal fun buildWaypoints(legs: List<Leg>): List<Waypoint> {
     val result = mutableListOf<Waypoint>()
     fun add(lat: Double?, lon: Double?, label: String, time: Long?) {
         if (lat == null || lon == null) return
@@ -124,9 +140,10 @@ private class RouteMapState {
     var drawn: List<RouteSegment>? = null
     var drawnWaypoints: List<Waypoint>? = null
     var fittedTo: List<GeoPoint>? = null
+    var drawnLocation: GeoPoint? = null
 }
 
-private fun drawOverlays(mapView: MapView, segments: List<RouteSegment>, allPoints: List<GeoPoint>, waypoints: List<Waypoint>) {
+private fun drawOverlays(mapView: MapView, segments: List<RouteSegment>, allPoints: List<GeoPoint>, waypoints: List<Waypoint>, myLocation: GeoPoint?) {
     val density = mapView.resources.displayMetrics.density
     mapView.overlays.clear()
 
@@ -136,6 +153,7 @@ private fun drawOverlays(mapView: MapView, segments: List<RouteSegment>, allPoin
             setPoints(segment.points)
             outlinePaint.color = android.graphics.Color.WHITE
             outlinePaint.strokeWidth = 7f * density
+            if (segment.dashed) outlinePaint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(18f * density, 12f * density), 0f)
         })
     }
     segments.forEach { segment ->
@@ -144,6 +162,7 @@ private fun drawOverlays(mapView: MapView, segments: List<RouteSegment>, allPoin
             setPoints(segment.points)
             outlinePaint.color = color?.toArgb() ?: android.graphics.Color.BLACK
             outlinePaint.strokeWidth = (if (color != null) 4f else 3.5f) * density
+            if (segment.dashed) outlinePaint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(18f * density, 12f * density), 0f)
         })
     }
 
@@ -172,6 +191,7 @@ private fun drawOverlays(mapView: MapView, segments: List<RouteSegment>, allPoin
     allPoints.lastOrNull()?.takeIf { it != allPoints.firstOrNull() }?.let { end ->
         mapView.overlays.add(Marker(mapView).apply { position = end; title = "End" })
     }
+    myLocation?.let { addMyLocationMarker(mapView, it) }
     mapView.invalidate()
 }
 
@@ -207,6 +227,12 @@ fun RouteMap(
     val shownWaypoints = if (showWaypoints) waypoints else emptyList()
 
     val state = remember { RouteMapState() }
+    var mapRef by remember { mutableStateOf<MapView?>(null) }
+    var myLocation by remember { mutableStateOf<GeoPoint?>(null) }
+    val locate = rememberLocateAction { point ->
+        myLocation = point
+        mapRef?.let { centreOn(it, point) }
+    }
 
     // clipToBounds: osmdroid scales its canvas during zoom, and Compose's AndroidView host
     // doesn't clip its child, so without this the tiles and route spill over neighbouring UI.
@@ -218,13 +244,15 @@ fun RouteMap(
                 MapView(ctx).apply {
                     setTileSource(TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
+                    mapRef = this
                 }
             },
             update = { mapView ->
-                if (state.drawn != segments || state.drawnWaypoints != shownWaypoints) {
-                    drawOverlays(mapView, segments, allPoints, shownWaypoints)
+                if (state.drawn != segments || state.drawnWaypoints != shownWaypoints || state.drawnLocation != myLocation) {
+                    drawOverlays(mapView, segments, allPoints, shownWaypoints, myLocation)
                     state.drawn = segments
                     state.drawnWaypoints = shownWaypoints
+                    state.drawnLocation = myLocation
                     // Only re-fit when the route itself changed, not when just a rating did.
                     if (state.fittedTo != allPoints) {
                         state.fittedTo = allPoints
@@ -233,6 +261,7 @@ fun RouteMap(
                 }
             }
         )
+        LocateButton(onClick = locate, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
         if (waypoints.isNotEmpty()) {
             FilterChip(
                 selected = showWaypoints,

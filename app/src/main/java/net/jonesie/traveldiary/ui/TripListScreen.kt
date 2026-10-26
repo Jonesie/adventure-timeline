@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ExploreOff
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -75,7 +76,8 @@ fun TripListScreen(
     onOpenTrip: (Long) -> Unit,
     onNearby: () -> Unit,
     onImportTimeline: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onOpenMap: () -> Unit
 ) {
     val trips by viewModel.trips.collectAsState()
     val mediaKinds by viewModel.mediaKindsByTrip.collectAsState()
@@ -177,6 +179,9 @@ fun TripListScreen(
                     }
                     IconButton(onClick = onImportTimeline) {
                         Icon(Icons.Filled.CloudDownload, contentDescription = "Import from Google Timeline")
+                    }
+                    IconButton(onClick = onOpenMap) {
+                        Icon(Icons.Filled.Map, contentDescription = "Map of all trips")
                     }
                     IconButton(onClick = onNearby) {
                         Icon(Icons.Filled.ExploreOff, contentDescription = "Have I been here before?")

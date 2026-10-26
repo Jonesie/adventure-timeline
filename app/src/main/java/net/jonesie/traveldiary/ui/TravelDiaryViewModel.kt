@@ -37,7 +37,9 @@ import net.jonesie.traveldiary.util.MediaFiles
 import net.jonesie.traveldiary.util.PathPoint
 import net.jonesie.traveldiary.util.PlaceInfo
 import net.jonesie.traveldiary.util.ReverseGeocoder
+import net.jonesie.traveldiary.util.RouteShape
 import net.jonesie.traveldiary.util.TripTimeWindow
+import org.osmdroid.util.GeoPoint
 
 class TravelDiaryViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -251,6 +253,44 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     suspend fun routePointsFor(tripId: Long) = dao.getRoutePointsForTrip(tripId)
+
+    /**
+     * Every trip's route for the all-trips map. Trips with no GPS trail fall back to a line through
+     * their legs' stops, and long trails are thinned so dozens of trips stay quick to draw.
+     */
+    suspend fun allTripRoutes(): List<TripRoute> = withContext(Dispatchers.IO) {
+        val trails = dao.getAllRoutePoints().groupBy { it.tripId }
+        val legs = dao.getAllLegs().groupBy { it.tripId }
+        dao.getAllTrips().sortedBy { it.startDate }.map { trip ->
+            val tripLegs = legs[trip.id].orEmpty()
+            val trail = trails[trip.id].orEmpty()
+            val lines = mutableListOf<RouteLine>()
+            if (trail.isNotEmpty()) {
+                // Thin very long trails (per trip) so many trips stay quick to draw.
+                val step = (trail.size + 1499) / 1500
+                RouteShape.splitByTransport(trail, tripLegs).forEach { piece ->
+                    val pts = piece.points.filterIndexed { i, _ -> step <= 1 || i % step == 0 || i == piece.points.lastIndex }
+                    lines += RouteLine(pts.map { GeoPoint(it.lat, it.lon) }, piece.transport)
+                }
+                RouteShape.sparseLegs(trail, tripLegs, TransportType.PLANE).forEach { leg ->
+                    lines += RouteLine(
+                        listOf(GeoPoint(leg.originLat!!, leg.originLon!!), GeoPoint(leg.destinationLat!!, leg.destinationLon!!)),
+                        leg.transportType, dashed = true
+                    )
+                }
+            } else {
+                // No GPS trail: a dashed straight line per leg, since that's all that's known.
+                tripLegs.sortedBy { it.startTime }.forEach { leg ->
+                    val pts = listOfNotNull(
+                        if (leg.originLat != null && leg.originLon != null) GeoPoint(leg.originLat, leg.originLon) else null,
+                        if (leg.destinationLat != null && leg.destinationLon != null) GeoPoint(leg.destinationLat, leg.destinationLon) else null
+                    )
+                    if (pts.size == 2) lines += RouteLine(pts, leg.transportType, dashed = true)
+                }
+            }
+            TripRoute(trip, lines, tripLegs)
+        }
+    }
 
     fun setLegDetails(legIds: List<Long>, type: TransportType, difficulty: Int, enjoyment: Int) {
         viewModelScope.launch {
@@ -480,6 +520,11 @@ private fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): 
         Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) * Math.sin(dLon / 2).let { it * it }
     return 6371.0 * 2 * Math.asin(Math.sqrt(a))
 }
+
+/** One continuous stretch of a route; [transport] is null where no leg covers it. */
+data class RouteLine(val points: List<GeoPoint>, val transport: TransportType?, val dashed: Boolean = false)
+
+data class TripRoute(val trip: Trip, val lines: List<RouteLine>, val legs: List<Leg>)
 
 data class BackupSettings(val lastBackup: Long?, val reminderDays: Int, val snoozedUntil: Long) {
     /** True when the diary has data and the user is due (or has never had) a backup. */

@@ -120,6 +120,7 @@ interface TravelDiaryDao {
 
     // Whole-diary backup / restore.
     @Query("SELECT * FROM trips") suspend fun getAllTrips(): List<Trip>
+    @Query("SELECT * FROM route_points ORDER BY tripId, timestamp") suspend fun getAllRoutePoints(): List<RoutePoint>
     @Query("SELECT * FROM companions") suspend fun getAllCompanions(): List<Companion>
     @Query("SELECT * FROM trip_companions") suspend fun getAllCrossRefs(): List<TripCompanionCrossRef>
     @Query("SELECT * FROM legs") suspend fun getAllLegs(): List<Leg>

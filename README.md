@@ -23,6 +23,13 @@ All data is stored on the device (Room/SQLite). Nothing is synced automatically;
 - **Photos, videos and audio**: capture with the camera or microphone, pick from the phone
   (the picker opens on the trip's dates; items are linked in place, not copied), or auto-add everything your camera shot during the trip's dates (`DCIM/Camera` only). Shown as
   a thumbnail gallery with full-screen viewing and in-app playback.
+- **All-trips map**: every trip's route on one map, coloured by star rating, with tap-to-open, a
+  Waypoints toggle and transport-type filter chips. Stretches the phone never tracked are left
+  unjoined; flights with no trail are shown as a dashed straight line.
+- **Centre on my location** button on every map.
+- **Photo viewer**: pinch/double-tap to zoom, and the place a photo or video was taken (from its
+  metadata) with a tap to open it in a maps app. Gallery items need the "location info in photos"
+  permission to reveal it.
 - **Settings**: back up the whole diary (trips, routes, notes, attached files) to one zip you save
   anywhere, e.g. Drive, and restore from it (restore replaces the current diary). "Free up space"
   swaps duplicate imported copies for links to the originals in the gallery. Also holds "Delete all trips".
