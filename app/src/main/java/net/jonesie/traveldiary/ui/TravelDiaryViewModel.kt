@@ -31,6 +31,8 @@ import net.jonesie.traveldiary.data.RoutePoint
 import net.jonesie.traveldiary.util.ActivityLeg
 import net.jonesie.traveldiary.util.NEARBY_RADIUS_DEGREES_SQUARED
 import net.jonesie.traveldiary.util.CameraRoll
+import net.jonesie.traveldiary.util.DiaryBackup
+import net.jonesie.traveldiary.util.DuplicateCopies
 import net.jonesie.traveldiary.util.MediaFiles
 import net.jonesie.traveldiary.util.PathPoint
 import net.jonesie.traveldiary.util.PlaceInfo
@@ -323,6 +325,40 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         return fresh.count { it.type == MediaType.PHOTO } to fresh.count { it.type == MediaType.VIDEO }
     }
 
+    /** Adds photos/videos already on the phone by reference (nothing is copied). */
+    fun addPhoneMedia(tripId: Long, items: List<CameraRoll.Item>) {
+        viewModelScope.launch {
+            val existing = dao.getMediaUris(tripId).toHashSet()
+            dao.insertMediaItems(
+                items.filter { it.uri.toString() !in existing }
+                    .map { MediaItem(tripId = tripId, type = it.type, uri = it.uri.toString(), timestamp = it.takenAt) }
+            )
+        }
+    }
+
+    /** Imported copies that are byte-for-byte duplicates of something in the phone's gallery. */
+    suspend fun findDuplicateCopies(): List<DuplicateCopies.Match> {
+        _backupProgress.value = "Looking for duplicate copies…"
+        return try {
+            withContext(Dispatchers.IO) { DuplicateCopies.find(getApplication(), dao.getAllMedia()) }
+        } finally {
+            _backupProgress.value = null
+        }
+    }
+
+    fun replaceCopiesWithLinks(matches: List<DuplicateCopies.Match>, onDone: (freedBytes: Long) -> Unit) {
+        viewModelScope.launch {
+            var freed = 0L
+            matches.forEachIndexed { index, m ->
+                _backupProgress.value = "Replacing copies… ${index + 1} of ${matches.size}"
+                dao.updateMediaUri(m.mediaId, m.galleryUri.toString())
+                if (withContext(Dispatchers.IO) { m.file.delete() }) freed += m.bytes
+            }
+            _backupProgress.value = null
+            onDone(freed)
+        }
+    }
+
     fun deleteMedia(item: MediaItem) {
         viewModelScope.launch {
             dao.deleteMediaItem(item.id)
@@ -341,6 +377,50 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
 
     fun deleteTrip(tripId: Long) {
         viewModelScope.launch { dao.deleteTripById(tripId) }
+    }
+
+    private val _backupProgress = MutableStateFlow<String?>(null)
+    /** Non-null while a backup or restore is running; the text says where it's up to. */
+    val backupProgress: StateFlow<String?> = _backupProgress.asStateFlow()
+
+    fun exportBackup(target: Uri, includeCameraRoll: Boolean, onDone: (String) -> Unit) {
+        if (_backupProgress.value != null) return
+        viewModelScope.launch {
+            _backupProgress.value = "Starting…"
+            val message = runCatching {
+                DiaryBackup.export(getApplication(), target, includeCameraRoll) { _backupProgress.value = it }
+            }.fold(
+                onSuccess = {
+                    buildString {
+                        append("Backed up ${it.trips} trips and ${it.files} photo/video/audio files.")
+                        if (it.linkedOnly > 0) append(" ${it.linkedOnly} camera-roll items were not included; they stay in your gallery.")
+                    }
+                },
+                onFailure = { "Backup failed: ${it.message ?: it.javaClass.simpleName}" }
+            )
+            _backupProgress.value = null
+            onDone(message)
+        }
+    }
+
+    fun restoreBackup(source: Uri, onDone: (String) -> Unit) {
+        if (_backupProgress.value != null) return
+        viewModelScope.launch {
+            _backupProgress.value = "Starting…"
+            val message = runCatching {
+                DiaryBackup.restore(getApplication(), source) { _backupProgress.value = it }
+            }.fold(
+                onSuccess = {
+                    buildString {
+                        append("Restored ${it.trips} trips and ${it.files} media files.")
+                        if (it.skipped > 0) append(" ${it.skipped} files were missing from the backup.")
+                    }
+                },
+                onFailure = { "Restore failed: ${it.message ?: it.javaClass.simpleName}. Your diary was not changed." }
+            )
+            _backupProgress.value = null
+            onDone(message)
+        }
     }
 
     fun deleteAllTrips() {

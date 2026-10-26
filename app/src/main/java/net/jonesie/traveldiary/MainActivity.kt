@@ -36,6 +36,7 @@ import net.jonesie.traveldiary.ui.MediaPickerScreen
 import net.jonesie.traveldiary.ui.MediaViewerScreen
 import net.jonesie.traveldiary.ui.NearbyScreen
 import net.jonesie.traveldiary.ui.RecordAudioScreen
+import net.jonesie.traveldiary.ui.SettingsScreen
 import net.jonesie.traveldiary.ui.TravelDiaryViewModel
 import net.jonesie.traveldiary.ui.TripDetailScreen
 import net.jonesie.traveldiary.ui.TripListScreen
@@ -66,8 +67,13 @@ private fun TravelDiaryApp() {
                 onAddTrip = { navController.navigate("addTrip") },
                 onOpenTrip = { tripId -> navController.navigate("tripDetail/$tripId") },
                 onNearby = { navController.navigate("nearby") },
-                onImportTimeline = { navController.navigate("importTimeline") }
+                onImportTimeline = { navController.navigate("importTimeline") },
+                onOpenSettings = { navController.navigate("settings") }
             )
+        }
+
+        composable("settings") {
+            SettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
         }
 
         composable("importTimeline") {

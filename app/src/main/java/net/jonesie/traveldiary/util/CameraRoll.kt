@@ -10,7 +10,7 @@ import net.jonesie.traveldiary.data.MediaType
 /** Finds photos and videos on the phone, optionally limited to a time window and/or the camera folder. */
 object CameraRoll {
 
-    data class Item(val uri: Uri, val type: MediaType, val takenAt: Long)
+    data class Item(val uri: Uri, val type: MediaType, val takenAt: Long, val size: Long = 0)
 
     /** Photos and videos this phone's own camera (DCIM/Camera) took within the window. */
     fun find(context: Context, fromMs: Long, toMs: Long): List<Item> =
@@ -51,15 +51,16 @@ object CameraRoll {
         val items = mutableListOf<Item>()
         context.contentResolver.query(
             base,
-            arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DATE_TAKEN),
+            arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DATE_TAKEN, MediaStore.MediaColumns.SIZE),
             clauses.takeIf { it.isNotEmpty() }?.joinToString(" AND "),
             args.takeIf { it.isNotEmpty() }?.toTypedArray(),
             "${MediaStore.MediaColumns.DATE_TAKEN} ${if (newestFirst) "DESC" else "ASC"}"
         )?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
             val takenCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_TAKEN)
+            val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
             while (cursor.moveToNext()) {
-                items.add(Item(ContentUris.withAppendedId(base, cursor.getLong(idCol)), type, cursor.getLong(takenCol)))
+                items.add(Item(ContentUris.withAppendedId(base, cursor.getLong(idCol)), type, cursor.getLong(takenCol), cursor.getLong(sizeCol)))
             }
         }
         return items

@@ -4,7 +4,7 @@ A personal, offline-first Android app for recording the trips you take: where yo
 got there, who with, plus photos, audio and notes. It is travel-only by design; it does not record
 online activity.
 
-All data is stored on the device (Room/SQLite). Nothing is synced anywhere yet.
+All data is stored on the device (Room/SQLite). Nothing is synced automatically; use Settings to back up.
 
 ## Features
 
@@ -20,9 +20,12 @@ All data is stored on the device (Room/SQLite). Nothing is synced anywhere yet.
 - **Route map** (OpenStreetMap via osmdroid) drawn from the recorded GPS trail, with a full-screen view.
   Rated legs are coloured by difficulty (green easiest to purple hardest), with a legend.
   An optional "Waypoints" toggle (off by default) marks each stop with its name and time.
-- **Photos, videos and audio**: capture with the camera or microphone, pick from anywhere on the phone
-  (the picker opens on the trip's dates), or auto-add everything your camera shot during the trip's dates (`DCIM/Camera` only). Shown as
+- **Photos, videos and audio**: capture with the camera or microphone, pick from the phone
+  (the picker opens on the trip's dates; items are linked in place, not copied), or auto-add everything your camera shot during the trip's dates (`DCIM/Camera` only). Shown as
   a thumbnail gallery with full-screen viewing and in-app playback.
+- **Settings**: back up the whole diary (trips, routes, notes, attached files) to one zip you save
+  anywhere, e.g. Drive, and restore from it (restore replaces the current diary). "Free up space"
+  swaps duplicate imported copies for links to the originals in the gallery. Also holds "Delete all trips".
 - **Notes**: quick timestamped impressions, tagged with your location when available.
 - **Google Timeline import**: pulls the trips Google has already detected, with their legs, transport
   and route. Re-importing updates existing trips in place and keeps your manual changes

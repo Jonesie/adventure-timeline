@@ -38,7 +38,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ExploreOff
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -73,12 +73,11 @@ fun TripListScreen(
     onAddTrip: () -> Unit,
     onOpenTrip: (Long) -> Unit,
     onNearby: () -> Unit,
-    onImportTimeline: () -> Unit
+    onImportTimeline: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val trips by viewModel.trips.collectAsState()
     val mediaKinds by viewModel.mediaKindsByTrip.collectAsState()
-    var menuExpanded by remember { mutableStateOf(false) }
-    var confirmDeleteAll by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -180,17 +179,8 @@ fun TripListScreen(
                     IconButton(onClick = onNearby) {
                         Icon(Icons.Filled.ExploreOff, contentDescription = "Have I been here before?")
                     }
-                    IconButton(onClick = { menuExpanded = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "More")
-                    }
-                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Delete all trips") },
-                            onClick = {
-                                menuExpanded = false
-                                confirmDeleteAll = true
-                            }
-                        )
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
                     }
                 }
             )
@@ -230,23 +220,6 @@ fun TripListScreen(
                 }
             }
         }
-    }
-
-    if (confirmDeleteAll) {
-        AlertDialog(
-            onDismissRequest = { confirmDeleteAll = false },
-            title = { Text("Delete all trips?") },
-            text = { Text("This removes every trip, leg, photo, audio and impression. This can't be undone.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteAllTrips()
-                    confirmDeleteAll = false
-                }) { Text("Delete all") }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDeleteAll = false }) { Text("Cancel") }
-            }
-        )
     }
 }
 

@@ -103,6 +103,9 @@ interface TravelDiaryDao {
     @Query("SELECT uri FROM media_items WHERE tripId = :tripId")
     suspend fun getMediaUris(tripId: Long): List<String>
 
+    @Query("UPDATE media_items SET uri = :uri WHERE id = :id")
+    suspend fun updateMediaUri(id: Long, uri: String)
+
     @Query("DELETE FROM media_items WHERE id = :id")
     suspend fun deleteMediaItem(id: Long)
 
@@ -114,6 +117,22 @@ interface TravelDiaryDao {
 
     @Insert
     suspend fun insertRoutePoints(points: List<RoutePoint>)
+
+    // Whole-diary backup / restore.
+    @Query("SELECT * FROM trips") suspend fun getAllTrips(): List<Trip>
+    @Query("SELECT * FROM companions") suspend fun getAllCompanions(): List<Companion>
+    @Query("SELECT * FROM trip_companions") suspend fun getAllCrossRefs(): List<TripCompanionCrossRef>
+    @Query("SELECT * FROM legs") suspend fun getAllLegs(): List<Leg>
+    @Query("SELECT * FROM media_items") suspend fun getAllMedia(): List<MediaItem>
+    @Query("SELECT * FROM impressions") suspend fun getAllImpressions(): List<Impression>
+
+    @Insert suspend fun insertTrips(items: List<Trip>)
+    @Insert suspend fun insertCompanions(items: List<Companion>)
+    @Insert suspend fun insertCrossRefs(items: List<TripCompanionCrossRef>)
+    @Insert suspend fun insertLegs(items: List<Leg>)
+    @Insert suspend fun insertImpressions(items: List<Impression>)
+
+    @Query("DELETE FROM companions") suspend fun deleteAllCompanions()
 
     @Query("SELECT * FROM route_points WHERE tripId = :tripId ORDER BY timestamp")
     suspend fun getRoutePointsForTrip(tripId: Long): List<RoutePoint>

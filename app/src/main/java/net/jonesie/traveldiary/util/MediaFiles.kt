@@ -18,8 +18,19 @@ object MediaFiles {
     private const val AUTHORITY = "net.jonesie.traveldiary.fileprovider"
     private val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
 
-    private fun mediaDir(context: Context): File =
+    fun mediaDir(context: Context): File =
         File(context.getExternalFilesDir(null), "media").apply { mkdirs() }
+
+    fun uriFor(context: Context, file: File): Uri = FileProvider.getUriForFile(context, AUTHORITY, file)
+
+    /** The file behind a diary entry, if the app owns it (i.e. it isn't a camera-roll reference). */
+    fun ownedFile(context: Context, uriString: String): File? {
+        val uri = Uri.parse(uriString)
+        if (uri.authority != AUTHORITY) return null
+        val relative = uri.path?.removePrefix("/") ?: return null
+        if (!relative.startsWith("media/")) return null
+        return File(context.getExternalFilesDir(null), relative)
+    }
 
     fun newPhotoUri(context: Context): Uri {
         val file = File(mediaDir(context), "photo_${stamp.format(Date())}.jpg")

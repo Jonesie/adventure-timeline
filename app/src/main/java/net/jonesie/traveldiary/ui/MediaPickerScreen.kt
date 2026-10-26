@@ -90,6 +90,13 @@ fun MediaPickerScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: () 
         loading = false
     }
 
+    // Photos and videos already on this phone are linked in place, not copied: copying
+    // multi-gigabyte videos would fill the phone.
+    fun addFromPhone(chosen: List<CameraRoll.Item>) {
+        viewModel.addPhoneMedia(tripId, chosen)
+        onBack()
+    }
+
     fun importUris(uris: List<Uri>) {
         viewModel.importFiles(tripId, uris, null) { _, failed ->
             if (failed > 0) Toast.makeText(context, "$failed file(s) couldn't be imported", Toast.LENGTH_LONG).show()
@@ -114,7 +121,7 @@ fun MediaPickerScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: () 
                 actions = {
                     TextButton(
                         enabled = selected.isNotEmpty(),
-                        onClick = { importUris(items.filter { it.uri.toString() in selected }.map { it.uri }) }
+                        onClick = { addFromPhone(items.filter { it.uri.toString() in selected }) }
                     ) { Text(if (selected.isEmpty()) "Add" else "Add ${selected.size}") }
                 }
             )
