@@ -208,6 +208,14 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
             )
 
             CoffeeButton()
+
+            Text(
+                "Travel Diary is free software (GPL-3.0). Source: github.com/Jonesie/travel-diary\n" +
+                    "Maps © OpenStreetMap contributors. Place names via your device's geocoder.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 24.dp)
+            )
         }
     }
 

@@ -96,6 +96,7 @@ private fun draw(
     myLocation: GeoPoint?,
     pins: List<PhotoPin>,
     onOpenPin: (PhotoPin) -> Unit,
+    dark: Boolean,
     onTap: (GeoPoint) -> Unit
 ) {
     val density = mapView.resources.displayMetrics.density
@@ -145,6 +146,7 @@ private fun draw(
         }
     }
     addPhotoPins(mapView, pins, onOpenPin)
+    addOsmCredit(mapView, dark)
     myLocation?.let { addMyLocationMarker(mapView, it) }
     mapView.invalidate()
 }
@@ -404,7 +406,7 @@ private fun TripsMap(
                 if (state.drawnRoutes != routes || state.drawnSelection != selectedId ||
                     state.drawnWaypoints != waypoints || state.drawnLocation != myLocation || state.drawnPins != pins
                 ) {
-                    draw(mapView, routes, selectedId, waypoints, myLocation, pins, latestOpenPin) { tap ->
+                    draw(mapView, routes, selectedId, waypoints, myLocation, pins, latestOpenPin, dark) { tap ->
                         latestSelect(nearestTrip(mapView, latestRoutes, tap, 28f * mapView.resources.displayMetrics.density))
                     }
                     state.drawnRoutes = routes

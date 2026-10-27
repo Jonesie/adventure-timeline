@@ -1,0 +1,4 @@
+title: Travel Diary
+theme: jekyll-theme-minimal
+exclude:
+  - RELEASING.md

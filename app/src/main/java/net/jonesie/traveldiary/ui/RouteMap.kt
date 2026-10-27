@@ -205,6 +205,7 @@ private fun drawOverlays(
         mapView.overlays.add(Marker(mapView).apply { position = end; title = "End" })
     }
     addPhotoPins(mapView, pins, onOpenPin)
+    addOsmCredit(mapView, dark)
     myLocation?.let { addMyLocationMarker(mapView, it) }
     mapView.invalidate()
 }
@@ -300,7 +301,7 @@ fun RouteMap(
                 }
             }
         )
-        LocateButton(onClick = locate, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
+        LocateButton(onClick = locate, modifier = Modifier.align(Alignment.CenterStart).padding(8.dp))
         Row(
             modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)

@@ -62,6 +62,20 @@ fun centreOn(mapView: MapView, point: GeoPoint) {
     mapView.controller.animateTo(point)
 }
 
+/** OpenStreetMap's licence and tile policy require this credit to be visible on every map using its tiles. */
+const val OSM_CREDIT = "© OpenStreetMap contributors"
+
+fun addOsmCredit(mapView: MapView, dark: Boolean) {
+    mapView.overlays.add(
+        org.osmdroid.views.overlay.CopyrightOverlay(mapView.context).apply {
+            setCopyrightNotice(OSM_CREDIT)
+            setAlignBottom(true)
+            setAlignRight(false)
+            setTextColor(if (dark) android.graphics.Color.WHITE else android.graphics.Color.DKGRAY)
+        }
+    )
+}
+
 /** Dark theme: invert the (light) map tiles so the map isn't a glaring white rectangle. */
 fun applyMapTheme(mapView: MapView, dark: Boolean) {
     mapView.overlayManager.tilesOverlay.setColorFilter(if (dark) org.osmdroid.views.overlay.TilesOverlay.INVERT_COLORS else null)
@@ -197,6 +211,20 @@ fun captureMapImage(mapView: MapView, export: MapExport?, dark: Boolean, scale: 
         mapView.overlays.addAll(savedOverlays)
         if (dark) applyMapTheme(mapView, true)
     }
+    // The credit belongs on the shared picture as well.
+    val creditPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.DKGRAY
+        textSize = 11f * mapView.resources.displayMetrics.density * scale
+    }
+    val pad = 4f * mapView.resources.displayMetrics.density * scale
+    val textWidth = creditPaint.measureText(OSM_CREDIT)
+    val backdrop = android.graphics.Paint().apply { color = 0xB3FFFFFF.toInt() }
+    canvas.drawRect(
+        bitmap.width - textWidth - 2 * pad, bitmap.height - creditPaint.textSize - 2 * pad,
+        bitmap.width.toFloat(), bitmap.height.toFloat(), backdrop
+    )
+    canvas.drawText(OSM_CREDIT, bitmap.width - textWidth - pad, bitmap.height - pad - creditPaint.descent(), creditPaint)
+
     if (export == null) return bitmap
 
     val density = mapView.resources.displayMetrics.density * scale

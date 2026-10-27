@@ -115,3 +115,9 @@ Pull requests are built and tested by GitHub Actions (`.github/workflows/ci.yml`
 `v1.0.0` builds a signed app bundle and publishes it (`.github/workflows/release.yml`); see
 [docs/RELEASING.md](docs/RELEASING.md) for the one-time signing and Play Console setup.
 Run the tests locally with `./gradlew testDebugUnitTest`.
+
+## Licence
+
+Travel Diary is free software, released under the [GNU General Public License v3.0](LICENSE) (or later at your option).
+Copyright © 2026 Jonesie. Maps are © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright).
+The [privacy policy](https://jonesie.github.io/travel-diary/privacy/) explains what the app does with your data.
