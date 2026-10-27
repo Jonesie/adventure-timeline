@@ -1,6 +1,13 @@
 package net.jonesie.traveldiary.ui
 
 import androidx.compose.foundation.clickable
+import android.content.Intent
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.ui.platform.LocalContext
+import net.jonesie.traveldiary.util.ContactsHelper
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -230,6 +237,7 @@ fun TripDetailScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ColumnScope.OverviewTab(
     tripId: Long,
@@ -282,10 +290,36 @@ private fun ColumnScope.OverviewTab(
     }
 
     SectionHeader("Companions")
-    Text(
-        if (trip.companions.isEmpty()) "None logged" else trip.companions.joinToString(", ") { it.name },
-        modifier = Modifier.padding(bottom = 12.dp)
-    )
+    if (trip.companions.isEmpty()) {
+        Text("None logged", modifier = Modifier.padding(bottom = 12.dp))
+    } else {
+        val context = LocalContext.current
+        FlowRow(
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(bottom = 12.dp)
+        ) {
+            trip.companions.forEach { person ->
+                val linked = person.contactId != null
+                // Matched people open their contact card; the rest are just names.
+                AssistChip(
+                    onClick = {
+                        person.contactId?.let { key ->
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, ContactsHelper.contactUri(key)))
+                            }
+                        }
+                    },
+                    enabled = linked,
+                    label = { Text(person.name) },
+                    leadingIcon = { Icon(if (linked) Icons.Filled.Person else Icons.Outlined.PersonOutline, contentDescription = null) },
+                    colors = AssistChipDefaults.assistChipColors(
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurface,
+                        disabledLeadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        }
+    }
 }
 
 @Composable

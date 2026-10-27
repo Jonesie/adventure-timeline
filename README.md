@@ -40,6 +40,10 @@ All data is stored on the device (Room/SQLite). Nothing is synced automatically;
   expected size. Photos/videos from the gallery stay linked (not copied) unless you tick the
   camera-roll option, which can need tens of GB free. A reminder card appears on the diary list when
   a backup is due (7/14/30 days or off).
+- **Companions matched to contacts**: while typing a companion, names from the phone's contacts
+  (including synced Google contacts) are suggested, and companions are linked to the matching contact
+  so tapping one opens their contact card. Settings can link existing names in one go. Only names
+  and Android's contact IDs are read; nothing leaves the phone.
 - **Notes**: quick timestamped impressions, tagged with your location when available.
 - **Google Timeline import**: pulls the trips Google has already detected, with their legs, transport
   and route. Re-importing updates existing trips in place and keeps your manual changes
@@ -84,7 +88,6 @@ The app works offline. It only uses the network to fetch map tiles and to look u
 ## Status and not built yet
 
 - Syncing to a private, self-hosted store (planned instead of a third-party cloud).
-- Matching companions against Google Contacts.
 
 ## Notes for developers
 

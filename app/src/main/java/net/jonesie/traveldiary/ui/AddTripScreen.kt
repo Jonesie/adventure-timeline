@@ -1,5 +1,19 @@
 package net.jonesie.traveldiary.ui
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import net.jonesie.traveldiary.util.ContactsHelper
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,6 +63,19 @@ fun AddTripScreen(
     var startDate by remember { mutableStateOf(initialStartDate) }
     var endDate by remember { mutableStateOf(initialEndDate) }
 
+    // Suggest people from the phone's contacts while typing a companion's name.
+    val context = LocalContext.current
+    var hasContacts by remember { mutableStateOf(ContactsHelper.hasPermission(context)) }
+    val askContacts = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasContacts = it }
+    val typing = companions.substringAfterLast(',').trim()
+    var suggestions by remember { mutableStateOf<List<ContactsHelper.Contact>>(emptyList()) }
+    LaunchedEffect(typing, hasContacts) {
+        suggestions = if (hasContacts && typing.length >= 2) {
+            withContext(Dispatchers.IO) { ContactsHelper.search(context, typing) }
+                .filterNot { it.name.equals(typing, ignoreCase = true) }
+        } else emptyList()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -79,6 +106,27 @@ fun AddTripScreen(
                 label = { Text("Companions (comma-separated)") },
                 modifier = Modifier.fillMaxWidth()
             )
+            if (!hasContacts) {
+                TextButton(onClick = { askContacts.launch(Manifest.permission.READ_CONTACTS) }) {
+                    Text("Suggest from my contacts")
+                }
+            } else if (suggestions.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    suggestions.forEach { contact ->
+                        SuggestionChip(
+                            onClick = {
+                                val before = companions.substringBeforeLast(',', "").trim()
+                                companions = (if (before.isEmpty()) "" else "$before, ") + contact.name + ", "
+                            },
+                            label = { Text(contact.name) },
+                            icon = { Icon(Icons.Filled.Person, contentDescription = null) }
+                        )
+                    }
+                }
+            }
             androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
             OutlinedTextField(
                 value = notes,

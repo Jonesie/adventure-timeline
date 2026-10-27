@@ -82,6 +82,12 @@ interface TravelDiaryDao {
     @Query("SELECT * FROM companions ORDER BY name")
     fun observeCompanions(): Flow<List<Companion>>
 
+    @Query("UPDATE companions SET contactId = :contactId WHERE id = :id")
+    suspend fun setCompanionContact(id: Long, contactId: String?)
+
+    @Query("SELECT * FROM companions WHERE contactId IS NULL")
+    suspend fun getCompanionsWithoutContact(): List<Companion>
+
     @Query("SELECT * FROM companions WHERE name = :name LIMIT 1")
     suspend fun findCompanionByName(name: String): Companion?
 

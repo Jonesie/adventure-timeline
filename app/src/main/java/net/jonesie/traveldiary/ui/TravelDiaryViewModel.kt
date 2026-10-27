@@ -31,6 +31,7 @@ import net.jonesie.traveldiary.data.RoutePoint
 import net.jonesie.traveldiary.util.ActivityLeg
 import net.jonesie.traveldiary.util.NEARBY_RADIUS_DEGREES_SQUARED
 import net.jonesie.traveldiary.util.CameraRoll
+import net.jonesie.traveldiary.util.ContactsHelper
 import net.jonesie.traveldiary.util.DiaryBackup
 import net.jonesie.traveldiary.util.DuplicateCopies
 import net.jonesie.traveldiary.util.MediaLocation
@@ -56,13 +57,37 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
 
     fun tripDetail(tripId: Long): Flow<TripDetail?> = dao.observeTripDetail(tripId)
 
+    /** The companion with this name, created if new, and linked to a matching contact when one exists. */
+    private suspend fun companionIdFor(name: String): Long {
+        val context = getApplication<Application>()
+        val existing = dao.findCompanionByName(name)
+        val id = existing?.id ?: dao.insertCompanion(Companion(name = name))
+        if (existing?.contactId == null) {
+            withContext(Dispatchers.IO) { ContactsHelper.match(context, name) }?.let { dao.setCompanionContact(id, it.lookupKey) }
+        }
+        return id
+    }
+
+    /** Links existing free-text companions to contacts by name. Returns (linked, companions that were unlinked). */
+    suspend fun linkCompanionsToContacts(): Pair<Int, Int> {
+        val context = getApplication<Application>()
+        val unlinked = dao.getCompanionsWithoutContact()
+        var linked = 0
+        unlinked.forEach { companion ->
+            val contact = withContext(Dispatchers.IO) { ContactsHelper.match(context, companion.name, allowFirstName = true) }
+            if (contact != null) {
+                dao.setCompanionContact(companion.id, contact.lookupKey)
+                linked++
+            }
+        }
+        return linked to unlinked.size
+    }
+
     fun addTrip(title: String, startDate: Long, endDate: Long?, notes: String, companionNames: List<String>, onDone: (Long) -> Unit) {
         viewModelScope.launch {
             val tripId = dao.insertTrip(Trip(title = title, startDate = startDate, endDate = endDate, notes = notes))
             companionNames.map { it.trim() }.filter { it.isNotEmpty() }.forEach { name ->
-                val existing = dao.findCompanionByName(name)
-                val companionId = existing?.id ?: dao.insertCompanion(Companion(name = name))
-                dao.insertTripCompanionCrossRef(TripCompanionCrossRef(tripId, companionId))
+                dao.insertTripCompanionCrossRef(TripCompanionCrossRef(tripId, companionIdFor(name)))
             }
             onDone(tripId)
         }
@@ -81,9 +106,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
             dao.updateTripDetails(tripId, title, notes, startDate, endDate)
             dao.clearTripCompanions(tripId)
             companionNames.map { it.trim() }.filter { it.isNotEmpty() }.forEach { name ->
-                val existing = dao.findCompanionByName(name)
-                val companionId = existing?.id ?: dao.insertCompanion(Companion(name = name))
-                dao.insertTripCompanionCrossRef(TripCompanionCrossRef(tripId, companionId))
+                dao.insertTripCompanionCrossRef(TripCompanionCrossRef(tripId, companionIdFor(name)))
             }
             onDone()
         }

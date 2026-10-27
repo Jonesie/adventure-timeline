@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
@@ -72,6 +73,21 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
     var result by remember { mutableStateOf<String?>(null) }
     var copyMatches by remember { mutableStateOf<List<DuplicateCopies.Match>?>(null) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    fun runLink() {
+        scope.launch {
+            val (linked, total) = viewModel.linkCompanionsToContacts()
+            result = if (total == 0) "Every companion is already linked to a contact."
+            else "Linked $linked of $total companions to contacts. The rest have no matching name in your contacts."
+        }
+    }
+    val askContacts = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) runLink() else result = "Contacts permission is needed to match companions."
+    }
+    fun linkCompanions() {
+        if (net.jonesie.traveldiary.util.ContactsHelper.hasPermission(context)) runLink()
+        else askContacts.launch(android.Manifest.permission.READ_CONTACTS)
+    }
 
     val createBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) viewModel.exportBackup(uri, includeCameraRoll) { result = it }
@@ -113,6 +129,14 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
                 title = "Restore from backup",
                 subtitle = "Replace the diary with a backup made by this app.",
                 onClick = { confirmRestore = true }
+            )
+
+            SectionHeader("People")
+            SettingRow(
+                icon = { Icon(Icons.Filled.People, contentDescription = null) },
+                title = "Link companions to contacts",
+                subtitle = "Match the names you've typed to people in your phone's contacts (including Google contacts), so you can open their contact card from a trip.",
+                onClick = { linkCompanions() }
             )
 
             SectionHeader("Data")
