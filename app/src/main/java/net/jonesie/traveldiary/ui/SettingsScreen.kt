@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.People
@@ -58,7 +59,7 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImportTimeline: () -> Unit) {
+fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImportTimeline: () -> Unit, onOpenAbout: () -> Unit) {
     val progress by viewModel.backupProgress.collectAsState()
     val backupSettings by viewModel.backupSettings.collectAsState()
     var showReminderOptions by remember { mutableStateOf(false) }
@@ -134,6 +135,14 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
+            SectionHeader("About")
+            SettingRow(
+                icon = { Icon(Icons.Filled.Info, contentDescription = null) },
+                title = "About Travel Diary",
+                subtitle = "What it is and why it exists.",
+                onClick = onOpenAbout
+            )
+
             SectionHeader("Appearance")
             SettingRow(
                 icon = { Icon(Icons.Filled.Palette, contentDescription = null) },
@@ -431,7 +440,7 @@ private fun sizeText(bytes: Long): String = when {
  * image CDN, so the app makes no network request just to show it.
  */
 @Composable
-private fun CoffeeButton() {
+internal fun CoffeeButton() {
     val context = androidx.compose.ui.platform.LocalContext.current
     androidx.compose.material3.Surface(
         onClick = {

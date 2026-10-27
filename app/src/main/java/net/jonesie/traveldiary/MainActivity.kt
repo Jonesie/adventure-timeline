@@ -28,6 +28,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import net.jonesie.traveldiary.data.MediaType
+import net.jonesie.traveldiary.ui.AboutScreen
 import net.jonesie.traveldiary.ui.AddImpressionScreen
 import net.jonesie.traveldiary.ui.AllTripsMapScreen
 import net.jonesie.traveldiary.ui.AddLegScreen
@@ -106,8 +107,13 @@ private fun TravelDiaryApp() {
             SettingsScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onImportTimeline = { navController.navigate("importTimeline") }
+                onImportTimeline = { navController.navigate("importTimeline") },
+                onOpenAbout = { navController.navigate("about") }
             )
+        }
+
+        composable("about") {
+            AboutScreen(onBack = { navController.popBackStack() })
         }
 
         composable("stats") {
