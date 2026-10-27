@@ -210,7 +210,7 @@ fun TripDetailScreen(
             )
         }
 
-        val tabs = listOf("Overview", "Legs", "Media", "Notes")
+        val tabs = listOf("Overview", "Legs", "Media", "Notes", "Share")
 
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             Text(
@@ -230,7 +230,8 @@ fun TripDetailScreen(
                     0 -> OverviewTab(tripId, viewModel, trip, onOpenMap, onOpenMedia, onRate = { viewModel.setTripRating(tripId, it) })
                     1 -> LegsTab(legGroups, onEditGroup = { editingGroup = it })
                     2 -> MediaTab(trip, importProgress, onPickMedia, onAutoAddMedia, onOpenMedia)
-                    else -> NotesTab(trip)
+                    3 -> NotesTab(trip)
+                    else -> ShareTab(tripId, viewModel, trip)
                 }
             }
         }

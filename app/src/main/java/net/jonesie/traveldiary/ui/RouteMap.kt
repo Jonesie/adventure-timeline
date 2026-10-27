@@ -227,7 +227,9 @@ fun RouteMap(
     legs: List<Leg>,
     modifier: Modifier = Modifier.fillMaxWidth().height(220.dp),
     media: List<MediaItem> = emptyList(),
-    onOpenMedia: ((Int) -> Unit)? = null
+    onOpenMedia: ((Int) -> Unit)? = null,
+    onMapView: ((MapView) -> Unit)? = null,
+    onMapExport: ((MapExport) -> Unit)? = null
 ) {
     // Newly read locations flow back through the trip's media list, so nothing to do when it finishes.
     BackfillMediaLocations(viewModel) {}
@@ -268,6 +270,7 @@ fun RouteMap(
                     setTileSource(TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
                     mapRef = this
+                    onMapView?.invoke(this)
                     applyMapTheme(this, dark)
                 }
             },
@@ -275,6 +278,17 @@ fun RouteMap(
                 if (state.drawn != segments || state.drawnWaypoints != shownWaypoints || state.drawnLocation != myLocation || state.drawnPins != shownPins) {
                     drawOverlays(mapView, segments, allPoints, shownWaypoints, myLocation, shownPins, { pin -> latestOpen?.invoke(pin.index) }, dark)
                     state.drawnPins = shownPins
+                    onMapExport?.invoke(
+                        MapExport(
+                            lines = segments.filter { it.points.size > 1 }.map { seg ->
+                                ExportLine(seg.points, difficultyColor(seg.level)?.toArgb() ?: 0xFF111111.toInt(), seg.dashed)
+                            },
+                            waypoints = shownWaypoints.map { it.point },
+                            pins = shownPins.map { ExportPin(it.point, it.item.type == net.jonesie.traveldiary.data.MediaType.VIDEO) },
+                            start = allPoints.firstOrNull(),
+                            end = allPoints.lastOrNull()?.takeIf { it != allPoints.firstOrNull() }
+                        )
+                    )
                     state.drawn = segments
                     state.drawnWaypoints = shownWaypoints
                     state.drawnLocation = myLocation

@@ -497,7 +497,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         snoozedUntil = prefs.getLong("snoozedUntil", 0L)
     )
 
-    val mapViewState = MapViewState()
+    val mapViewState = MapViewState(prefs)
 
     private val _listSort = MutableStateFlow(
         ListSort(
@@ -621,19 +621,60 @@ data class RouteLine(val points: List<GeoPoint>, val transport: TransportType?, 
 
 /** [media] is in the same order the photo viewer uses, so a pin's index opens the right photo. */
 /**
- * What the all-trips map was showing, kept here (it outlives the screen) so switching to the
- * Trips tab and back, or opening a trip and returning, leaves the map as you left it.
+ * What the all-trips map was showing. It lives in the ViewModel so switching tabs or opening a trip
+ * and coming back leaves the map as it was, and it is saved to preferences so a full restart does too.
  */
-class MapViewState {
-    var latitude: Double? = null
-    var longitude: Double? = null
-    var zoom: Double? = null
-    var types: Set<TransportType> = emptySet()
-    var showWaypoints: Boolean = false
-    var showPhotos: Boolean = false
+class MapViewState(private val prefs: android.content.SharedPreferences) {
+    var latitude: Double? = prefs.getString("mapLat", null)?.toDoubleOrNull()
+        private set
+    var longitude: Double? = prefs.getString("mapLon", null)?.toDoubleOrNull()
+        private set
+    var zoom: Double? = prefs.getString("mapZoom", null)?.toDoubleOrNull()
+        private set
+
+    var types: Set<TransportType> = (prefs.getStringSet("mapTypes", null) ?: emptySet())
+        .mapNotNull { runCatching { TransportType.valueOf(it) }.getOrNull() }.toSet()
+        set(value) {
+            if (field == value) return
+            field = value
+            prefs.edit().putStringSet("mapTypes", value.map { it.name }.toSet()).apply()
+        }
+    var showWaypoints: Boolean = prefs.getBoolean("mapWaypoints", false)
+        set(value) {
+            if (field == value) return
+            field = value
+            prefs.edit().putBoolean("mapWaypoints", value).apply()
+        }
+    var showPhotos: Boolean = prefs.getBoolean("mapPhotos", false)
+        set(value) {
+            if (field == value) return
+            field = value
+            prefs.edit().putBoolean("mapPhotos", value).apply()
+        }
+
+    /** Not kept across restarts: a selected trip is only a momentary highlight. */
     var selectedTripId: Long? = null
 
     val hasCamera get() = latitude != null && longitude != null && zoom != null
+
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val save = Runnable {
+        val lat = latitude
+        val lon = longitude
+        val z = zoom
+        if (lat != null && lon != null && z != null) {
+            prefs.edit().putString("mapLat", lat.toString()).putString("mapLon", lon.toString()).putString("mapZoom", z.toString()).apply()
+        }
+    }
+
+    /** Called on every pan/zoom, so the write waits until the map has been still for a moment. */
+    fun updateCamera(lat: Double, lon: Double, zoomLevel: Double) {
+        latitude = lat
+        longitude = lon
+        zoom = zoomLevel
+        handler.removeCallbacks(save)
+        handler.postDelayed(save, 500)
+    }
 }
 
 enum class SortBy(val label: String) { DATE("Date"), RATING("Rating") }

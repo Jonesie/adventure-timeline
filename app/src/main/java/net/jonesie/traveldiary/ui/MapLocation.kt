@@ -134,3 +134,90 @@ fun BackfillMediaLocations(viewModel: TravelDiaryViewModel, onFound: () -> Unit)
         }
     }
 }
+
+/** The map as drawn, in plain data, so the share picture can redraw it larger and crisper than the screen. */
+class ExportLine(val points: List<GeoPoint>, val color: Int, val dashed: Boolean)
+class ExportPin(val point: GeoPoint, val video: Boolean)
+class MapExport(
+    val lines: List<ExportLine>,
+    val waypoints: List<GeoPoint>,
+    val pins: List<ExportPin>,
+    val start: GeoPoint?,
+    val end: GeoPoint?
+)
+
+/**
+ * A picture of the map for sharing: the tiles as they're framed on screen, scaled up by [scale], with
+ * the route and markers redrawn on top at full sharpness (so they stay readable when zoomed).
+ */
+fun captureMapImage(mapView: MapView, export: MapExport?, dark: Boolean, scale: Float = 2f): android.graphics.Bitmap? {
+    if (mapView.width == 0 || mapView.height == 0) return null
+    val bitmap = android.graphics.Bitmap.createBitmap(
+        (mapView.width * scale).toInt(), (mapView.height * scale).toInt(), android.graphics.Bitmap.Config.ARGB_8888
+    )
+    val canvas = android.graphics.Canvas(bitmap)
+
+    // Tiles only: set the on-screen overlays aside while drawing, always with the normal light tiles.
+    val savedOverlays = ArrayList(mapView.overlays)
+    mapView.overlays.clear()
+    if (dark) applyMapTheme(mapView, false)
+    try {
+        canvas.save()
+        canvas.scale(scale, scale)
+        mapView.draw(canvas)
+        canvas.restore()
+    } finally {
+        mapView.overlays.addAll(savedOverlays)
+        if (dark) applyMapTheme(mapView, true)
+    }
+    if (export == null) return bitmap
+
+    val density = mapView.resources.displayMetrics.density * scale
+    val projection = mapView.projection
+    val scratch = android.graphics.Point()
+    fun px(point: GeoPoint): android.graphics.PointF {
+        projection.toPixels(point, scratch)
+        return android.graphics.PointF(scratch.x * scale, scratch.y * scale)
+    }
+    fun stroke(color: Int, widthDp: Float, dashed: Boolean) = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        style = android.graphics.Paint.Style.STROKE
+        this.color = color
+        strokeWidth = widthDp * density
+        strokeCap = android.graphics.Paint.Cap.ROUND
+        strokeJoin = android.graphics.Paint.Join.ROUND
+        if (dashed) pathEffect = android.graphics.DashPathEffect(floatArrayOf(16f * density, 10f * density), 0f)
+    }
+    fun fill(color: Int) = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
+
+    val white = android.graphics.Color.WHITE
+    export.lines.forEach { line ->
+        if (line.points.size < 2) return@forEach
+        val path = android.graphics.Path()
+        line.points.forEachIndexed { i, g -> val p = px(g); if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y) }
+        canvas.drawPath(path, stroke(white, 9f, line.dashed))
+        canvas.drawPath(path, stroke(line.color, 5.5f, line.dashed))
+    }
+    export.waypoints.forEach { g ->
+        val p = px(g)
+        canvas.drawCircle(p.x, p.y, 5f * density, fill(white))
+        canvas.drawCircle(p.x, p.y, 5f * density, stroke(0xFF333333.toInt(), 1.5f, false))
+    }
+    export.pins.forEach { pin ->
+        val p = px(pin.point)
+        val half = 6.5f * density
+        val rect = android.graphics.RectF(p.x - half, p.y - half, p.x + half, p.y + half)
+        canvas.drawRoundRect(rect, 3f * density, 3f * density, fill(if (pin.video) 0xFF7B1FA2.toInt() else 0xFF00897B.toInt()))
+        canvas.drawRoundRect(rect, 3f * density, 3f * density, stroke(white, 1.5f, false))
+    }
+    export.start?.let { g ->
+        val p = px(g)
+        canvas.drawCircle(p.x, p.y, 8f * density, fill(white))
+        canvas.drawCircle(p.x, p.y, 6f * density, fill(0xFF2E7D32.toInt()))
+    }
+    export.end?.let { g ->
+        val p = px(g)
+        canvas.drawCircle(p.x, p.y, 8f * density, fill(white))
+        canvas.drawCircle(p.x, p.y, 6f * density, fill(0xFFC62828.toInt()))
+    }
+    return bitmap
+}

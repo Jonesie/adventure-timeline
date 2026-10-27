@@ -391,9 +391,7 @@ private fun TripsMap(
                     addMapListener(object : MapListener {
                         private fun remember(): Boolean {
                             val centre = mapCenter
-                            saved.latitude = centre.latitude
-                            saved.longitude = centre.longitude
-                            saved.zoom = zoomLevelDouble
+                            saved.updateCamera(centre.latitude, centre.longitude, zoomLevelDouble)
                             return false
                         }
                         override fun onScroll(event: ScrollEvent?) = remember()
