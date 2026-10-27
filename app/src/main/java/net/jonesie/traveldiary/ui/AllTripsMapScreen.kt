@@ -6,7 +6,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ExploreOff
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -55,6 +58,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.doOnLayout
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
+import org.osmdroid.events.MapListener
+import org.osmdroid.events.ScrollEvent
+import org.osmdroid.events.ZoomEvent
+import androidx.compose.runtime.SideEffect
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
@@ -181,14 +188,29 @@ private fun distanceToSegment(px: Float, py: Float, ax: Float, ay: Float, bx: Fl
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AllTripsMapScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onOpenTrip: (Long) -> Unit, onOpenMedia: (Long, Int) -> Unit) {
+fun AllTripsMapScreen(
+    viewModel: TravelDiaryViewModel,
+    onOpenTrip: (Long) -> Unit,
+    onOpenMedia: (Long, Int) -> Unit,
+    onShowList: () -> Unit,
+    onNearby: () -> Unit,
+    onOpenStats: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
     var routes by remember { mutableStateOf<List<TripRoute>?>(null) }
-    var selectedId by remember { mutableStateOf<Long?>(null) }
-    var showWaypoints by remember { mutableStateOf(false) }
-    var types by remember { mutableStateOf<Set<TransportType>>(emptySet()) } // empty = every transport
+    val saved = viewModel.mapViewState
+    var selectedId by remember { mutableStateOf(saved.selectedTripId) }
+    var showWaypoints by remember { mutableStateOf(saved.showWaypoints) }
+    var types by remember { mutableStateOf(saved.types) } // empty = every transport
     var myLocation by remember { mutableStateOf<GeoPoint?>(null) }
     var mapRef by remember { mutableStateOf<MapView?>(null) }
-    var showPhotos by remember { mutableStateOf(false) }
+    var showPhotos by remember { mutableStateOf(saved.showPhotos) }
+    SideEffect {
+        saved.selectedTripId = selectedId
+        saved.showWaypoints = showWaypoints
+        saved.types = types
+        saved.showPhotos = showPhotos
+    }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { routes = viewModel.allTripRoutes() }
     // Photo locations are read in the background; reload once they're in so pins appear.
@@ -201,12 +223,15 @@ fun AllTripsMapScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onOpe
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("All trips") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
+                title = { Text("Travel Diary") },
+                actions = {
+                    IconButton(onClick = onOpenStats) { Icon(Icons.Filled.BarChart, contentDescription = "Trip stats") }
+                    IconButton(onClick = onNearby) { Icon(Icons.Filled.ExploreOff, contentDescription = "Have I been here before?") }
+                    IconButton(onClick = onOpenSettings) { Icon(Icons.Filled.Settings, contentDescription = "Settings") }
                 }
             )
-        }
+        },
+        bottomBar = { MainTabBar(selected = MainTab.MAP, onMap = {}, onList = onShowList) }
     ) { padding ->
         val loaded = routes
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -239,6 +264,7 @@ fun AllTripsMapScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onOpe
             }
             val hasPins = remember(withRoutes) { withRoutes.any { r -> r.media.any { it.lat != null } } }
             TripsMap(
+                saved = saved,
                 routes = visible,
                 fitTo = withRoutes,
                 selectedId = selectedId,
@@ -329,6 +355,7 @@ fun AllTripsMapScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onOpe
 
 @Composable
 private fun TripsMap(
+    saved: MapViewState,
     routes: List<TripRoute>,
     fitTo: List<TripRoute>,
     selectedId: Long?,
@@ -339,7 +366,7 @@ private fun TripsMap(
     onMapReady: (MapView) -> Unit,
     onSelect: (Long?) -> Unit
 ) {
-    val state = remember { AllTripsMapState() }
+    val state = remember { AllTripsMapState().also { it.fitted = saved.hasCamera } }
     val latestRoutes by rememberUpdatedState(routes)
     val latestSelect by rememberUpdatedState(onSelect)
     val latestOpenPin by rememberUpdatedState(onOpenPin)
@@ -356,6 +383,22 @@ private fun TripsMap(
                     setTileSource(TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
                     applyMapTheme(this, dark)
+                    // Come back to where the map was left, and keep noting where it is.
+                    if (saved.hasCamera) {
+                        controller.setZoom(saved.zoom!!)
+                        controller.setCenter(GeoPoint(saved.latitude!!, saved.longitude!!))
+                    }
+                    addMapListener(object : MapListener {
+                        private fun remember(): Boolean {
+                            val centre = mapCenter
+                            saved.latitude = centre.latitude
+                            saved.longitude = centre.longitude
+                            saved.zoom = zoomLevelDouble
+                            return false
+                        }
+                        override fun onScroll(event: ScrollEvent?) = remember()
+                        override fun onZoom(event: ZoomEvent?) = remember()
+                    })
                     onMapReady(this)
                 }
             },

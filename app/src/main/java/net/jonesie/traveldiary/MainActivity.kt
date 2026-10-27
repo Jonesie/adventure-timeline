@@ -41,6 +41,7 @@ import net.jonesie.traveldiary.ui.NearbyScreen
 import net.jonesie.traveldiary.ui.RecordAudioScreen
 import net.jonesie.traveldiary.ui.AppTheme
 import net.jonesie.traveldiary.ui.SettingsScreen
+import net.jonesie.traveldiary.ui.StatsScreen
 import net.jonesie.traveldiary.ui.TravelDiaryViewModel
 import net.jonesie.traveldiary.ui.TripDetailScreen
 import net.jonesie.traveldiary.ui.TripListScreen
@@ -66,30 +67,54 @@ private fun TravelDiaryApp() {
     val viewModel: TravelDiaryViewModel = viewModel()
     val context = LocalContext.current
 
-    NavHost(navController = navController, startDestination = "tripList") {
+    // The map is the home screen; "tripList" is its sibling tab, so switching pops back to the map.
+    fun switchTab(route: String) {
+        navController.navigate(route) {
+            popUpTo("allTripsMap") { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    NavHost(navController = navController, startDestination = "allTripsMap") {
+        composable("allTripsMap") {
+            AllTripsMapScreen(
+                viewModel = viewModel,
+                onOpenTrip = { tripId -> navController.navigate("tripDetail/$tripId") },
+                onOpenMedia = { tripId, index -> navController.navigate("tripDetail/$tripId/media/$index") },
+                onShowList = { switchTab("tripList") },
+                onNearby = { navController.navigate("nearby") },
+                onOpenStats = { navController.navigate("stats") },
+                onOpenSettings = { navController.navigate("settings") }
+            )
+        }
+
         composable("tripList") {
             TripListScreen(
                 viewModel = viewModel,
                 onAddTrip = { navController.navigate("addTrip") },
                 onOpenTrip = { tripId -> navController.navigate("tripDetail/$tripId") },
                 onNearby = { navController.navigate("nearby") },
-                onImportTimeline = { navController.navigate("importTimeline") },
+                onOpenStats = { navController.navigate("stats") },
                 onOpenSettings = { navController.navigate("settings") },
-                onOpenMap = { navController.navigate("allTripsMap") }
-            )
-        }
-
-        composable("allTripsMap") {
-            AllTripsMapScreen(
-                viewModel = viewModel,
-                onBack = { navController.popBackStack() },
-                onOpenTrip = { tripId -> navController.navigate("tripDetail/$tripId") },
-                onOpenMedia = { tripId, index -> navController.navigate("tripDetail/$tripId/media/$index") }
+                onShowMap = { switchTab("allTripsMap") }
             )
         }
 
         composable("settings") {
-            SettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            SettingsScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onImportTimeline = { navController.navigate("importTimeline") }
+            )
+        }
+
+        composable("stats") {
+            StatsScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onOpenTrip = { tripId -> navController.navigate("tripDetail/$tripId") }
+            )
         }
 
         composable("importTimeline") {

@@ -383,7 +383,7 @@ private fun groupConsecutiveLegs(legs: List<Leg>): List<LegGroup> {
     return groups
 }
 
-private fun transportIcon(type: TransportType): ImageVector = when (type) {
+internal fun transportIcon(type: TransportType): ImageVector = when (type) {
     TransportType.WALK -> Icons.Filled.DirectionsWalk
     TransportType.BIKE -> Icons.Filled.DirectionsBike
     TransportType.MOTORBIKE -> Icons.Filled.TwoWheeler

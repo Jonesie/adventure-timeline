@@ -8,9 +8,13 @@ All data is stored on the device (Room/SQLite). Nothing is synced automatically;
 
 ## Features
 
+- **Home screen**: the app opens on the all-trips map; a bottom bar switches to the list of trips.
+  The map keeps its position, zoom and filters while the app is open.
+- **Trip stats**: totals, distance by transport and by year, rating spread and highlights.
 - **Trips** with dates, notes, free-text companions and a 1-5 star rating. Rated trips are
   coloured on the diary list (1 star dark red through to 5 stars yellow). The list also shows icons for
   trips that have photos/videos or voice notes.
+- **Sort** the trip list by date or rating, ascending or descending (unrated trips always last by rating).
 - **Search** the diary by title, by place name, or near your current location. Place and location
   searches list trips whose route, stops, notes or media came within 1, 5 or 25 km.
 - **Trip screen with four tabs**: Overview (dates, rating, route map, companions), Legs, Media, Notes.

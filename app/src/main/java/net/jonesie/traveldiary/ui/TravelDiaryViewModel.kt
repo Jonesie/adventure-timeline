@@ -41,6 +41,8 @@ import net.jonesie.traveldiary.util.PathPoint
 import net.jonesie.traveldiary.util.PlaceInfo
 import net.jonesie.traveldiary.util.ReverseGeocoder
 import net.jonesie.traveldiary.util.RouteShape
+import net.jonesie.traveldiary.util.TripStats
+import net.jonesie.traveldiary.util.TripStatsCalculator
 import net.jonesie.traveldiary.util.TripTimeWindow
 import org.osmdroid.util.GeoPoint
 
@@ -279,6 +281,16 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
 
     suspend fun routePointsFor(tripId: Long) = dao.getRoutePointsForTrip(tripId)
 
+    suspend fun tripStats(): TripStats = withContext(Dispatchers.IO) {
+        TripStatsCalculator.compute(
+            trips = dao.getAllTrips(),
+            legs = dao.getAllLegs(),
+            trails = dao.getAllRoutePoints().groupBy { it.tripId },
+            media = dao.getAllMedia(),
+            impressions = dao.getAllImpressions()
+        )
+    }
+
     /**
      * Every trip's route for the all-trips map. Trips with no GPS trail fall back to a line through
      * their legs' stops, and long trails are thinned so dozens of trips stay quick to draw.
@@ -485,6 +497,21 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         snoozedUntil = prefs.getLong("snoozedUntil", 0L)
     )
 
+    val mapViewState = MapViewState()
+
+    private val _listSort = MutableStateFlow(
+        ListSort(
+            by = runCatching { SortBy.valueOf(prefs.getString("sortBy", null) ?: "") }.getOrDefault(SortBy.DATE),
+            ascending = prefs.getBoolean("sortAscending", false)
+        )
+    )
+    val listSort: StateFlow<ListSort> = _listSort.asStateFlow()
+
+    fun setListSort(sort: ListSort) {
+        prefs.edit().putString("sortBy", sort.by.name).putBoolean("sortAscending", sort.ascending).apply()
+        _listSort.value = sort
+    }
+
     private val _themeMode = MutableStateFlow(
         runCatching { ThemeMode.valueOf(prefs.getString("themeMode", null) ?: "") }.getOrDefault(ThemeMode.SYSTEM)
     )
@@ -593,6 +620,37 @@ private fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): 
 data class RouteLine(val points: List<GeoPoint>, val transport: TransportType?, val dashed: Boolean = false)
 
 /** [media] is in the same order the photo viewer uses, so a pin's index opens the right photo. */
+/**
+ * What the all-trips map was showing, kept here (it outlives the screen) so switching to the
+ * Trips tab and back, or opening a trip and returning, leaves the map as you left it.
+ */
+class MapViewState {
+    var latitude: Double? = null
+    var longitude: Double? = null
+    var zoom: Double? = null
+    var types: Set<TransportType> = emptySet()
+    var showWaypoints: Boolean = false
+    var showPhotos: Boolean = false
+    var selectedTripId: Long? = null
+
+    val hasCamera get() = latitude != null && longitude != null && zoom != null
+}
+
+enum class SortBy(val label: String) { DATE("Date"), RATING("Rating") }
+
+data class ListSort(val by: SortBy, val ascending: Boolean) {
+    /** Unrated trips always go last when sorting by rating, whichever way round; ties are newest first. */
+    fun apply(trips: List<Trip>): List<Trip> = when (by) {
+        SortBy.DATE -> if (ascending) trips.sortedBy { it.startDate } else trips.sortedByDescending { it.startDate }
+        SortBy.RATING -> {
+            val (rated, unrated) = trips.partition { it.rating > 0 }
+            val byRating = if (ascending) rated.sortedWith(compareBy<Trip> { it.rating }.thenByDescending { it.startDate })
+            else rated.sortedWith(compareByDescending<Trip> { it.rating }.thenByDescending { it.startDate })
+            byRating + unrated.sortedByDescending { it.startDate }
+        }
+    }
+}
+
 data class TripRoute(val trip: Trip, val lines: List<RouteLine>, val legs: List<Leg>, val media: List<MediaItem>)
 
 data class BackupSettings(val lastBackup: Long?, val reminderDays: Int, val snoozedUntil: Long) {

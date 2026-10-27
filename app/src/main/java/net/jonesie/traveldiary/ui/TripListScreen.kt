@@ -34,10 +34,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.ExploreOff
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -75,9 +74,9 @@ fun TripListScreen(
     onAddTrip: () -> Unit,
     onOpenTrip: (Long) -> Unit,
     onNearby: () -> Unit,
-    onImportTimeline: () -> Unit,
+    onOpenStats: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenMap: () -> Unit
+    onShowMap: () -> Unit
 ) {
     val trips by viewModel.trips.collectAsState()
     val mediaKinds by viewModel.mediaKindsByTrip.collectAsState()
@@ -143,13 +142,14 @@ fun TripListScreen(
         else locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
-    val visibleTrips = remember(trips, searching, mode, query, nearTripIds) {
-        when {
+    val sort by viewModel.listSort.collectAsState()
+    val visibleTrips = remember(trips, searching, mode, query, nearTripIds, sort) {
+        sort.apply(when {
             !searching -> trips
             mode == SearchMode.TITLE ->
                 if (query.isBlank()) trips else trips.filter { it.title.contains(query.trim(), ignoreCase = true) }
             else -> nearTripIds?.let { ids -> trips.filter { it.id in ids } } ?: trips
-        }
+        })
     }
     val message = status ?: when {
         !searching -> null
@@ -177,11 +177,8 @@ fun TripListScreen(
                             contentDescription = if (searching) "Close search" else "Search trips"
                         )
                     }
-                    IconButton(onClick = onImportTimeline) {
-                        Icon(Icons.Filled.CloudDownload, contentDescription = "Import from Google Timeline")
-                    }
-                    IconButton(onClick = onOpenMap) {
-                        Icon(Icons.Filled.Map, contentDescription = "Map of all trips")
+                    IconButton(onClick = onOpenStats) {
+                        Icon(Icons.Filled.BarChart, contentDescription = "Trip stats")
                     }
                     IconButton(onClick = onNearby) {
                         Icon(Icons.Filled.ExploreOff, contentDescription = "Have I been here before?")
@@ -192,6 +189,7 @@ fun TripListScreen(
                 }
             )
         },
+        bottomBar = { MainTabBar(selected = MainTab.LIST, onMap = onShowMap, onList = {}) },
         floatingActionButton = {
             FloatingActionButton(onClick = onAddTrip) {
                 Icon(Icons.Filled.Add, contentDescription = "Add trip")
@@ -224,8 +222,11 @@ fun TripListScreen(
                     onNearMe = { searchNearMe() }
                 )
             }
+            if (trips.size > 1) {
+                SortBar(sort = sort, onChange = { viewModel.setListSort(it) })
+            }
             when {
-                trips.isEmpty() -> Text("No trips yet — tap + to log one.", modifier = Modifier.padding(16.dp))
+                trips.isEmpty() -> Text("No trips yet — tap + to log one, or import your Google Timeline from Settings.", modifier = Modifier.padding(16.dp))
                 visibleTrips.isEmpty() -> Text("No trips match your search.", modifier = Modifier.padding(16.dp))
                 else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(visibleTrips, key = { it.id }) { trip ->
@@ -233,6 +234,26 @@ fun TripListScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SortBar(sort: ListSort, onChange: (ListSort) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("Sort", style = MaterialTheme.typography.labelLarge)
+        SortBy.entries.forEach { by ->
+            val selected = sort.by == by
+            FilterChip(
+                selected = selected,
+                // Tapping the active sort flips its direction; tapping the other one switches to it.
+                onClick = { onChange(if (selected) sort.copy(ascending = !sort.ascending) else ListSort(by, ascending = false)) },
+                label = { Text(by.label + if (selected) (if (sort.ascending) "  ↑" else "  ↓") else "") }
+            )
         }
     }
 }

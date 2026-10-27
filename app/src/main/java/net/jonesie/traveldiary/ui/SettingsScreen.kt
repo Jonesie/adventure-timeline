@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
@@ -56,7 +57,7 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
+fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImportTimeline: () -> Unit) {
     val progress by viewModel.backupProgress.collectAsState()
     val backupSettings by viewModel.backupSettings.collectAsState()
     var showReminderOptions by remember { mutableStateOf(false) }
@@ -118,6 +119,14 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
                 title = "Theme",
                 subtitle = themeMode.label,
                 onClick = { showThemeOptions = true }
+            )
+
+            SectionHeader("Import")
+            SettingRow(
+                icon = { Icon(Icons.Filled.CloudDownload, contentDescription = null) },
+                title = "Import from Google Timeline",
+                subtitle = "Bring in trips, legs and routes from a Timeline.json export. Re-importing keeps your edits.",
+                onClick = onImportTimeline
             )
 
             SectionHeader("Backup")
