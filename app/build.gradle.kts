@@ -5,6 +5,13 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// Versions come from the release workflow (-PversionName / -PversionCode, derived from the git tag).
+val appVersionName = (findProperty("versionName") as String?) ?: "0.1"
+val appVersionCode = (findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+
+// Release signing is read from the environment so no key ever lives in the repository.
+val releaseKeystore: String? = System.getenv("KEYSTORE_FILE")
+
 android {
     namespace = "net.jonesie.traveldiary"
     compileSdk = 36
@@ -13,14 +20,30 @@ android {
         applicationId = "net.jonesie.traveldiary"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = appVersionCode
+        versionName = appVersionName
+    }
+
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (releaseKeystore != null) signingConfig = signingConfigs.getByName("release")
         }
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 
     compileOptions {
@@ -66,6 +89,8 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
+
+    testImplementation("junit:junit:4.13.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

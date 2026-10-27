@@ -108,3 +108,10 @@ The app works offline. It only uses the network to fetch map tiles and to look u
   migration path.
 - Route lines come from Timeline's breadcrumb points stored per trip. Trips with no imported
   route fall back to straight lines between leg endpoints.
+
+## Builds and releases
+
+Pull requests are built and tested by GitHub Actions (`.github/workflows/ci.yml`). Pushing a tag such as
+`v1.0.0` builds a signed app bundle and publishes it (`.github/workflows/release.yml`); see
+[docs/RELEASING.md](docs/RELEASING.md) for the one-time signing and Play Console setup.
+Run the tests locally with `./gradlew testDebugUnitTest`.

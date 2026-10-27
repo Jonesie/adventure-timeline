@@ -12,3 +12,8 @@ local.properties
 
 # OS
 .DS_Store
+
+# Signing keys must never be committed
+*.keystore
+*.jks
+keystore.properties

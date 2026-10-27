@@ -1,5 +1,6 @@
 package net.jonesie.traveldiary.util
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Location
 import android.location.LocationManager
@@ -21,6 +22,7 @@ object LocationHelper {
      * A recent fix if there is one, otherwise asks for a fresh one; falls back to the last known
      * location if that fails. [onResult] runs on the main thread, with null if nothing is available.
      */
+    @SuppressLint("MissingPermission") // hasPermission() is checked first
     fun locate(context: Context, onResult: (Location?) -> Unit) {
         if (!hasPermission(context)) {
             onResult(null)
@@ -48,6 +50,7 @@ object LocationHelper {
         }
     }
 
+    @SuppressLint("MissingPermission") // hasPermission() is checked first
     fun lastKnownLocation(context: Context): Location? {
         if (!hasPermission(context)) return null
         val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
