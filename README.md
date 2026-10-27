@@ -6,6 +6,23 @@ online activity.
 
 All data is stored on the device (Room/SQLite). Nothing is synced automatically; use Settings to back up.
 
+## Screenshots
+
+<p>
+  <img src="docs/screenshots/trips.png" width="19%" alt="List of trips with star ratings">
+  <img src="docs/screenshots/trip-overview.png" width="19%" alt="A trip's route on the map, coloured by difficulty">
+  <img src="docs/screenshots/trip-legs.png" width="19%" alt="The legs of a trip with transport, times and ratings">
+  <img src="docs/screenshots/trip-media.png" width="19%" alt="Photos and videos attached to a trip">
+  <img src="docs/screenshots/stats.png" width="19%" alt="Trip stats: totals and distance by transport">
+</p>
+
+The route map fills the screen too:
+
+<p><img src="docs/screenshots/trip-map.png" width="30%" alt="Full-screen trip map"></p>
+
+*Trips, in order: the list, a trip's route, its legs, its media and the stats. Faces and
+names in the screenshots are blurred.*
+
 ## Features
 
 - **Home screen**: the app opens on the all-trips map; a bottom bar switches to the list of trips.
