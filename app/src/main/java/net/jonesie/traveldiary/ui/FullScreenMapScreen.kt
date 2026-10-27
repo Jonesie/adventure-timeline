@@ -19,7 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FullScreenMapScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
+fun FullScreenMapScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: () -> Unit, onOpenMedia: (Int) -> Unit) {
     val detail by remember(tripId) { viewModel.tripDetail(tripId) }.collectAsState(initial = null)
     val trip = detail
 
@@ -40,7 +40,9 @@ fun FullScreenMapScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: (
                 tripId = tripId,
                 viewModel = viewModel,
                 legs = trip.legs,
-                modifier = Modifier.fillMaxSize().padding(padding)
+                modifier = Modifier.fillMaxSize().padding(padding),
+                media = trip.sortedMedia(),
+                onOpenMedia = onOpenMedia
             )
         }
     }

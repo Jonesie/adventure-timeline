@@ -7,6 +7,9 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -74,6 +77,7 @@ private class AllTripsMapState {
     var drawnSelection: Long? = null
     var drawnWaypoints: List<TripWaypoint>? = null
     var drawnLocation: GeoPoint? = null
+    var drawnPins: List<PhotoPin>? = null
     var fitted = false
 }
 
@@ -83,6 +87,8 @@ private fun draw(
     selectedId: Long?,
     waypoints: List<TripWaypoint>,
     myLocation: GeoPoint?,
+    pins: List<PhotoPin>,
+    onOpenPin: (PhotoPin) -> Unit,
     onTap: (GeoPoint) -> Unit
 ) {
     val density = mapView.resources.displayMetrics.density
@@ -131,6 +137,7 @@ private fun draw(
             })
         }
     }
+    addPhotoPins(mapView, pins, onOpenPin)
     myLocation?.let { addMyLocationMarker(mapView, it) }
     mapView.invalidate()
 }
@@ -174,14 +181,18 @@ private fun distanceToSegment(px: Float, py: Float, ax: Float, ay: Float, bx: Fl
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AllTripsMapScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onOpenTrip: (Long) -> Unit) {
+fun AllTripsMapScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onOpenTrip: (Long) -> Unit, onOpenMedia: (Long, Int) -> Unit) {
     var routes by remember { mutableStateOf<List<TripRoute>?>(null) }
     var selectedId by remember { mutableStateOf<Long?>(null) }
     var showWaypoints by remember { mutableStateOf(false) }
     var types by remember { mutableStateOf<Set<TransportType>>(emptySet()) } // empty = every transport
     var myLocation by remember { mutableStateOf<GeoPoint?>(null) }
     var mapRef by remember { mutableStateOf<MapView?>(null) }
+    var showPhotos by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { routes = viewModel.allTripRoutes() }
+    // Photo locations are read in the background; reload once they're in so pins appear.
+    BackfillMediaLocations(viewModel) { scope.launch { routes = viewModel.allTripRoutes() } }
     val locate = rememberLocateAction { point ->
         myLocation = point
         mapRef?.let { centreOn(it, point) }
@@ -213,7 +224,7 @@ fun AllTripsMapScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onOpe
             }
             val visible = remember(withRoutes, types) {
                 if (types.isEmpty()) withRoutes
-                else withRoutes.map { r -> TripRoute(r.trip, r.lines.filter { it.transport in types }, r.legs) }
+                else withRoutes.map { r -> r.copy(lines = r.lines.filter { it.transport in types }) }
                     .filter { it.lines.isNotEmpty() }
             }
             val waypoints = remember(visible, types, showWaypoints) {
@@ -223,12 +234,18 @@ fun AllTripsMapScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onOpe
                         .map { TripWaypoint(r.trip.title, it) }
                 }
             }
+            val pins = remember(visible, showPhotos) {
+                if (showPhotos) visible.flatMap { photoPinsFor(it.trip.id, it.media) } else emptyList()
+            }
+            val hasPins = remember(withRoutes) { withRoutes.any { r -> r.media.any { it.lat != null } } }
             TripsMap(
                 routes = visible,
                 fitTo = withRoutes,
                 selectedId = selectedId,
                 waypoints = waypoints,
                 myLocation = myLocation,
+                pins = pins,
+                onOpenPin = { onOpenMedia(it.tripId, it.index) },
                 onMapReady = { mapRef = it },
                 onSelect = { selectedId = it }
             )
@@ -253,6 +270,15 @@ fun AllTripsMapScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onOpe
                         leadingIcon = if (showWaypoints) tick else { { Icon(Icons.Filled.Place, contentDescription = null) } },
                         colors = chipColors
                     )
+                    if (hasPins) {
+                        FilterChip(
+                            selected = showPhotos,
+                            onClick = { showPhotos = !showPhotos },
+                            label = { Text("Photos") },
+                            leadingIcon = if (showPhotos) tick else { { Icon(Icons.Filled.Image, contentDescription = null) } },
+                            colors = chipColors
+                        )
+                    }
                     FilterChip(
                         selected = types.isEmpty(),
                         onClick = { types = emptySet() },
@@ -308,12 +334,15 @@ private fun TripsMap(
     selectedId: Long?,
     waypoints: List<TripWaypoint>,
     myLocation: GeoPoint?,
+    pins: List<PhotoPin>,
+    onOpenPin: (PhotoPin) -> Unit,
     onMapReady: (MapView) -> Unit,
     onSelect: (Long?) -> Unit
 ) {
     val state = remember { AllTripsMapState() }
     val latestRoutes by rememberUpdatedState(routes)
     val latestSelect by rememberUpdatedState(onSelect)
+    val latestOpenPin by rememberUpdatedState(onOpenPin)
     val allPoints = remember(fitTo) { fitTo.flatMap { r -> r.lines.flatMap { it.points } } }
 
     // clipToBounds: see RouteMap — osmdroid's canvas scaling otherwise spills over neighbouring UI.
@@ -330,15 +359,16 @@ private fun TripsMap(
             },
             update = { mapView ->
                 if (state.drawnRoutes != routes || state.drawnSelection != selectedId ||
-                    state.drawnWaypoints != waypoints || state.drawnLocation != myLocation
+                    state.drawnWaypoints != waypoints || state.drawnLocation != myLocation || state.drawnPins != pins
                 ) {
-                    draw(mapView, routes, selectedId, waypoints, myLocation) { tap ->
+                    draw(mapView, routes, selectedId, waypoints, myLocation, pins, latestOpenPin) { tap ->
                         latestSelect(nearestTrip(mapView, latestRoutes, tap, 28f * mapView.resources.displayMetrics.density))
                     }
                     state.drawnRoutes = routes
                     state.drawnSelection = selectedId
                     state.drawnWaypoints = waypoints
                     state.drawnLocation = myLocation
+                    state.drawnPins = pins
                     // Fit once, to every trip, so toggling a filter doesn't move the map.
                     if (!state.fitted) {
                         state.fitted = true

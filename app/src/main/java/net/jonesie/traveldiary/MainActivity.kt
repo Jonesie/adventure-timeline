@@ -78,7 +78,8 @@ private fun TravelDiaryApp() {
             AllTripsMapScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onOpenTrip = { tripId -> navController.navigate("tripDetail/$tripId") }
+                onOpenTrip = { tripId -> navController.navigate("tripDetail/$tripId") },
+                onOpenMedia = { tripId, index -> navController.navigate("tripDetail/$tripId/media/$index") }
             )
         }
 
@@ -239,7 +240,12 @@ private fun TravelDiaryApp() {
             arguments = listOf(navArgument("tripId") { type = NavType.LongType })
         ) { backStackEntry ->
             val tripId = backStackEntry.arguments?.getLong("tripId") ?: return@composable
-            FullScreenMapScreen(tripId = tripId, viewModel = viewModel, onBack = { navController.popBackStack() })
+            FullScreenMapScreen(
+                tripId = tripId,
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onOpenMedia = { index -> navController.navigate("tripDetail/$tripId/media/$index") }
+            )
         }
 
         composable(

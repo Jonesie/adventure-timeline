@@ -33,6 +33,8 @@ import net.jonesie.traveldiary.util.NEARBY_RADIUS_DEGREES_SQUARED
 import net.jonesie.traveldiary.util.CameraRoll
 import net.jonesie.traveldiary.util.DiaryBackup
 import net.jonesie.traveldiary.util.DuplicateCopies
+import net.jonesie.traveldiary.util.MediaLocation
+import kotlinx.coroutines.sync.withLock
 import net.jonesie.traveldiary.util.MediaFiles
 import net.jonesie.traveldiary.util.PathPoint
 import net.jonesie.traveldiary.util.PlaceInfo
@@ -261,6 +263,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
     suspend fun allTripRoutes(): List<TripRoute> = withContext(Dispatchers.IO) {
         val trails = dao.getAllRoutePoints().groupBy { it.tripId }
         val legs = dao.getAllLegs().groupBy { it.tripId }
+        val media = dao.getAllMedia().groupBy { it.tripId }
         dao.getAllTrips().sortedBy { it.startDate }.map { trip ->
             val tripLegs = legs[trip.id].orEmpty()
             val trail = trails[trip.id].orEmpty()
@@ -288,7 +291,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
                     if (pts.size == 2) lines += RouteLine(pts, leg.transportType, dashed = true)
                 }
             }
-            TripRoute(trip, lines, tripLegs)
+            TripRoute(trip, lines, tripLegs, media[trip.id].orEmpty().sortedBy { it.timestamp })
         }
     }
 
@@ -363,6 +366,38 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
             fresh.map { MediaItem(tripId = tripId, type = it.type, uri = it.uri.toString(), timestamp = it.takenAt) }
         )
         return fresh.count { it.type == MediaType.PHOTO } to fresh.count { it.type == MediaType.VIDEO }
+    }
+
+    private val locationMutex = kotlinx.coroutines.sync.Mutex()
+
+    /** True when gallery photos still lack a location and Android needs us to ask for access to it. */
+    suspend fun galleryLocationPermissionNeeded(): Boolean = withContext(Dispatchers.IO) {
+        val context = getApplication<Application>()
+        dao.getMediaNeedingLocation().any { MediaLocation.needsPermission(context, it) }
+    }
+
+    /** Whether we've already asked for access to photo locations; the system prompt is only worth showing once. */
+    var askedForMediaLocation: Boolean
+        get() = prefs.getBoolean("askedMediaLocation", false)
+        set(value) { prefs.edit().putBoolean("askedMediaLocation", value).apply() }
+
+    /**
+     * Reads each photo/video's own location into the diary so it can be pinned on maps. Items
+     * whose location is hidden by missing permission are left to try again later.
+     * Returns how many items now have a location.
+     */
+    suspend fun backfillMediaLocations(): Int = locationMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val context = getApplication<Application>()
+            var found = 0
+            dao.getMediaNeedingLocation().forEach { item ->
+                val location = MediaLocation.read(context, item)
+                if (location == null && MediaLocation.needsPermission(context, item)) return@forEach
+                dao.setMediaLocation(item.id, location?.lat, location?.lon)
+                if (location != null) found++
+            }
+            found
+        }
     }
 
     /** Adds photos/videos already on the phone by reference (nothing is copied). */
@@ -524,7 +559,8 @@ private fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): 
 /** One continuous stretch of a route; [transport] is null where no leg covers it. */
 data class RouteLine(val points: List<GeoPoint>, val transport: TransportType?, val dashed: Boolean = false)
 
-data class TripRoute(val trip: Trip, val lines: List<RouteLine>, val legs: List<Leg>)
+/** [media] is in the same order the photo viewer uses, so a pin's index opens the right photo. */
+data class TripRoute(val trip: Trip, val lines: List<RouteLine>, val legs: List<Leg>, val media: List<MediaItem>)
 
 data class BackupSettings(val lastBackup: Long?, val reminderDays: Int, val snoozedUntil: Long) {
     /** True when the diary has data and the user is due (or has never had) a backup. */

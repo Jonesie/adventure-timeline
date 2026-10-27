@@ -220,7 +220,7 @@ fun TripDetailScreen(
             // MapView's own pan/zoom gestures don't compete with a scroll container.
             Column(modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
                 when (selectedTab) {
-                    0 -> OverviewTab(tripId, viewModel, trip, onOpenMap, onRate = { viewModel.setTripRating(tripId, it) })
+                    0 -> OverviewTab(tripId, viewModel, trip, onOpenMap, onOpenMedia, onRate = { viewModel.setTripRating(tripId, it) })
                     1 -> LegsTab(legGroups, onEditGroup = { editingGroup = it })
                     2 -> MediaTab(trip, importProgress, onPickMedia, onAutoAddMedia, onOpenMedia)
                     else -> NotesTab(trip)
@@ -236,6 +236,7 @@ private fun ColumnScope.OverviewTab(
     viewModel: TravelDiaryViewModel,
     trip: TripDetail,
     onOpenMap: () -> Unit,
+    onOpenMedia: (Int) -> Unit,
     onRate: (Int) -> Unit
 ) {
     val dateFormat = DateFormat.getDateInstance()
@@ -264,7 +265,10 @@ private fun ColumnScope.OverviewTab(
         androidx.compose.foundation.layout.Spacer(modifier = Modifier.weight(1f))
     } else {
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            RouteMap(tripId, viewModel, trip.legs, modifier = Modifier.fillMaxSize())
+            RouteMap(
+                tripId, viewModel, trip.legs, modifier = Modifier.fillMaxSize(),
+                media = trip.sortedMedia(), onOpenMedia = onOpenMedia
+            )
             Surface(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),

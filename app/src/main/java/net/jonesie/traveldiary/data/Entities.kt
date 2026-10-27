@@ -88,7 +88,9 @@ data class MediaItem(
     val timestamp: Long,
     val caption: String = "",
     val lat: Double? = null,
-    val lon: Double? = null
+    val lon: Double? = null,
+    // True once the file's own metadata has been checked for a location (found or not).
+    @ColumnInfo(defaultValue = "0") val locationChecked: Boolean = false
 )
 
 @Entity(

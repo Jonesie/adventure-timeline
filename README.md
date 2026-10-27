@@ -26,6 +26,9 @@ All data is stored on the device (Room/SQLite). Nothing is synced automatically;
 - **All-trips map**: every trip's route on one map, coloured by star rating, with tap-to-open, a
   Waypoints toggle and transport-type filter chips. Stretches the phone never tracked are left
   unjoined; flights with no trail are shown as a dashed straight line.
+- **Photo pins**: photos and videos with a location (read from their own metadata, once, in the
+  background) are pinned on trip maps (on by default) and on the all-trips map (off by default);
+  tap a pin to open it.
 - **Centre on my location** button on every map.
 - **Photo viewer**: pinch/double-tap to zoom, and the place a photo or video was taken (from its
   metadata) with a tap to open it in a maps app. Gallery items need the "location info in photos"

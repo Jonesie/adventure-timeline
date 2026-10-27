@@ -14,6 +14,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import net.jonesie.traveldiary.data.MediaItem
+import net.jonesie.traveldiary.data.MediaType
 import net.jonesie.traveldiary.util.LocationHelper
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -72,4 +77,55 @@ fun addMyLocationMarker(mapView: MapView, point: GeoPoint) {
         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
         title = "You are here"
     })
+}
+
+/** A photo or video that has a known location, for pinning on a map. [index] is its place in the trip's viewer order. */
+class PhotoPin(val tripId: Long, val index: Int, val item: MediaItem, val point: GeoPoint)
+
+fun photoPinsFor(tripId: Long, media: List<MediaItem>): List<PhotoPin> =
+    media.mapIndexedNotNull { index, item ->
+        if (item.lat != null && item.lon != null) PhotoPin(tripId, index, item, GeoPoint(item.lat, item.lon)) else null
+    }
+
+/** Small coloured badges: teal for photos, purple for videos. Tapping one calls [onOpen]. */
+fun addPhotoPins(mapView: MapView, pins: List<PhotoPin>, onOpen: (PhotoPin) -> Unit) {
+    val density = mapView.resources.displayMetrics.density
+    fun badge(color: Int) = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = 5 * density
+        setColor(color)
+        setStroke((2 * density).toInt(), android.graphics.Color.WHITE)
+        setSize((16 * density).toInt(), (16 * density).toInt())
+    }
+    val photo = badge(0xFF00897B.toInt())
+    val video = badge(0xFF7B1FA2.toInt())
+    pins.forEach { pin ->
+        mapView.overlays.add(Marker(mapView).apply {
+            position = pin.point
+            icon = if (pin.item.type == MediaType.VIDEO) video else photo
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            setOnMarkerClickListener { _, _ -> onOpen(pin); true }
+        })
+    }
+}
+
+/**
+ * Reads photo/video locations into the diary once per visit so they can be pinned. Gallery photos
+ * need the "location info in photos" permission, which is asked for a single time.
+ */
+@Composable
+fun BackfillMediaLocations(viewModel: TravelDiaryViewModel, onFound: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val run: () -> Unit = {
+        scope.launch { if (viewModel.backfillMediaLocations() > 0) onFound() }
+    }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { run() }
+    LaunchedEffect(Unit) {
+        if (!viewModel.askedForMediaLocation && viewModel.galleryLocationPermissionNeeded()) {
+            viewModel.askedForMediaLocation = true
+            ask.launch(Manifest.permission.ACCESS_MEDIA_LOCATION)
+        } else {
+            run()
+        }
+    }
 }

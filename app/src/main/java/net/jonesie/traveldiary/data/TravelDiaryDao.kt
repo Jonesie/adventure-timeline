@@ -103,6 +103,12 @@ interface TravelDiaryDao {
     @Query("SELECT uri FROM media_items WHERE tripId = :tripId")
     suspend fun getMediaUris(tripId: Long): List<String>
 
+    @Query("SELECT * FROM media_items WHERE type != 'AUDIO' AND lat IS NULL AND locationChecked = 0")
+    suspend fun getMediaNeedingLocation(): List<MediaItem>
+
+    @Query("UPDATE media_items SET lat = :lat, lon = :lon, locationChecked = 1 WHERE id = :id")
+    suspend fun setMediaLocation(id: Long, lat: Double?, lon: Double?)
+
     @Query("UPDATE media_items SET uri = :uri WHERE id = :id")
     suspend fun updateMediaUri(id: Long, uri: String)
 

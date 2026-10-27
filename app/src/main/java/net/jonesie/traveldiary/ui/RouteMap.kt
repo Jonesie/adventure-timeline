@@ -12,7 +12,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.runtime.rememberUpdatedState
+import net.jonesie.traveldiary.data.MediaItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -141,9 +144,18 @@ private class RouteMapState {
     var drawnWaypoints: List<Waypoint>? = null
     var fittedTo: List<GeoPoint>? = null
     var drawnLocation: GeoPoint? = null
+    var drawnPins: List<PhotoPin>? = null
 }
 
-private fun drawOverlays(mapView: MapView, segments: List<RouteSegment>, allPoints: List<GeoPoint>, waypoints: List<Waypoint>, myLocation: GeoPoint?) {
+private fun drawOverlays(
+    mapView: MapView,
+    segments: List<RouteSegment>,
+    allPoints: List<GeoPoint>,
+    waypoints: List<Waypoint>,
+    myLocation: GeoPoint?,
+    pins: List<PhotoPin>,
+    onOpenPin: (PhotoPin) -> Unit
+) {
     val density = mapView.resources.displayMetrics.density
     mapView.overlays.clear()
 
@@ -191,6 +203,7 @@ private fun drawOverlays(mapView: MapView, segments: List<RouteSegment>, allPoin
     allPoints.lastOrNull()?.takeIf { it != allPoints.firstOrNull() }?.let { end ->
         mapView.overlays.add(Marker(mapView).apply { position = end; title = "End" })
     }
+    addPhotoPins(mapView, pins, onOpenPin)
     myLocation?.let { addMyLocationMarker(mapView, it) }
     mapView.invalidate()
 }
@@ -211,8 +224,12 @@ fun RouteMap(
     tripId: Long,
     viewModel: TravelDiaryViewModel,
     legs: List<Leg>,
-    modifier: Modifier = Modifier.fillMaxWidth().height(220.dp)
+    modifier: Modifier = Modifier.fillMaxWidth().height(220.dp),
+    media: List<MediaItem> = emptyList(),
+    onOpenMedia: ((Int) -> Unit)? = null
 ) {
+    // Newly read locations flow back through the trip's media list, so nothing to do when it finishes.
+    BackfillMediaLocations(viewModel) {}
     var routePoints by remember(tripId) { mutableStateOf<List<RoutePoint>>(emptyList()) }
     LaunchedEffect(tripId) { routePoints = viewModel.routePointsFor(tripId) }
 
@@ -225,6 +242,10 @@ fun RouteMap(
     val waypoints = remember(legs) { buildWaypoints(legs) }
     var showWaypoints by rememberSaveable { mutableStateOf(false) }
     val shownWaypoints = if (showWaypoints) waypoints else emptyList()
+    val allPins = remember(media) { photoPinsFor(tripId, media) }
+    var showPhotos by rememberSaveable { mutableStateOf(true) }
+    val shownPins = if (showPhotos) allPins else emptyList()
+    val latestOpen by rememberUpdatedState(onOpenMedia)
 
     val state = remember { RouteMapState() }
     var mapRef by remember { mutableStateOf<MapView?>(null) }
@@ -248,8 +269,9 @@ fun RouteMap(
                 }
             },
             update = { mapView ->
-                if (state.drawn != segments || state.drawnWaypoints != shownWaypoints || state.drawnLocation != myLocation) {
-                    drawOverlays(mapView, segments, allPoints, shownWaypoints, myLocation)
+                if (state.drawn != segments || state.drawnWaypoints != shownWaypoints || state.drawnLocation != myLocation || state.drawnPins != shownPins) {
+                    drawOverlays(mapView, segments, allPoints, shownWaypoints, myLocation, shownPins) { pin -> latestOpen?.invoke(pin.index) }
+                    state.drawnPins = shownPins
                     state.drawn = segments
                     state.drawnWaypoints = shownWaypoints
                     state.drawnLocation = myLocation
@@ -261,18 +283,35 @@ fun RouteMap(
                 }
             }
         )
-        LocateButton(onClick = locate, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
-        if (waypoints.isNotEmpty()) {
-            FilterChip(
-                selected = showWaypoints,
-                onClick = { showWaypoints = !showWaypoints },
-                label = { Text("Waypoints") },
-                leadingIcon = { Icon(Icons.Filled.Place, contentDescription = null) },
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-                ),
-                modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)
+        LocateButton(onClick = locate, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
+        Row(
+            modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)
+        ) {
+            val chipColors = FilterChipDefaults.filterChipColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
             )
+            if (allPins.isNotEmpty()) {
+                FilterChip(
+                    selected = showPhotos,
+                    onClick = { showPhotos = !showPhotos },
+                    label = { Text("Photos") },
+                    leadingIcon = { Icon(Icons.Filled.Image, contentDescription = null) },
+                    colors = chipColors
+                )
+            }
+            if (waypoints.isNotEmpty()) {
+                FilterChip(
+                    selected = showWaypoints,
+                    onClick = { showWaypoints = !showWaypoints },
+                    label = { Text("Waypoints") },
+                    leadingIcon = { Icon(Icons.Filled.Place, contentDescription = null) },
+                    colors = chipColors
+                )
+            }
         }
         if (segments.any { it.level > 0 }) {
             DifficultyLegend(
