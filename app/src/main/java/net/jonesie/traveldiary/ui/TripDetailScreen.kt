@@ -218,7 +218,7 @@ fun TripDetailScreen(
             )
         }
 
-        val tabs = listOf("Overview", "Legs", "Media", "Notes", "Share")
+        val tabs = listOf("Map", "Legs", "Media", "Notes", "Share")
 
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             Text(

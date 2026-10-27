@@ -10,7 +10,7 @@ All data is stored on the device (Room/SQLite). Nothing is synced automatically;
 
 <p>
   <img src="docs/screenshots/trips.png" width="19%" alt="List of trips with star ratings">
-  <img src="docs/screenshots/trip-overview.png" width="19%" alt="A trip's route on the map, coloured by difficulty">
+  <img src="docs/screenshots/trip-route.png" width="19%" alt="A trip's route on the map, coloured by difficulty">
   <img src="docs/screenshots/trip-legs.png" width="19%" alt="The legs of a trip with transport, times and ratings">
   <img src="docs/screenshots/trip-media.png" width="19%" alt="Photos and videos attached to a trip">
   <img src="docs/screenshots/stats.png" width="19%" alt="Trip stats: totals and distance by transport">
@@ -20,7 +20,7 @@ The route map fills the screen too:
 
 <p><img src="docs/screenshots/trip-map.png" width="30%" alt="Full-screen trip map"></p>
 
-*Trips, in order: the list, a trip's route, its legs, its media and the stats. Faces and
+*Trips, in order: the list, a trip's Map tab, its legs, its media and the stats. Faces and
 names in the screenshots are blurred.*
 
 ## Features
@@ -34,7 +34,7 @@ names in the screenshots are blurred.*
 - **Sort** the trip list by date or rating, ascending or descending (unrated trips always last by rating).
 - **Search** the diary by title, by place name, or near your current location. Place and location
   searches list trips whose route, stops, notes or media came within 1, 5 or 25 km.
-- **Trip screen with four tabs**: Overview (dates, rating, route map, companions), Legs, Media, Notes.
+- **Trip screen with five tabs**: Map (dates, rating, route map, companions), Legs, Media, Notes, Share.
 - **Legs** with a transport type (walk, bike, motorbike, car, 4WD, bus, train, plane, boat, other),
   plus a difficulty (1-5) and an enjoyment (1-5 stars). Edit a single leg, or change the transport for
   every leg of a type across a whole trip.
