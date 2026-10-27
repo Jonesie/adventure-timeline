@@ -29,6 +29,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,6 +81,10 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
     var selectedPhotos by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var format by remember { mutableStateOf(ShareFormat.IMAGE) }
     var busy by remember { mutableStateOf(false) }
+    val homeSettings by viewModel.homeSettings.collectAsState()
+    var homeCentre by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    LaunchedEffect(homeSettings) { homeCentre = viewModel.homeCentre() }
+    var hideHome by remember { mutableStateOf(true) }
 
     val photos = remember(trip.media) { trip.sortedMedia().filter { it.type == MediaType.PHOTO } }
 
@@ -111,6 +117,9 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
             )
         }
         item { SwitchRow("Map (as shown above)", includeMap) { includeMap = it } }
+        if (homeCentre != null) {
+            item { SwitchRow("Hide my home area (${homeSettings.radiusKm} km) from the map", hideHome) { hideHome = it } }
+        }
         item { SwitchRow("Dates", includeDates) { includeDates = it } }
         item { SwitchRow("Star rating", includeRating) { includeRating = it } }
         item { SwitchRow("Companions" + if (trip.companions.isEmpty()) " (none logged)" else "", includeCompanions) { includeCompanions = it } }
@@ -191,7 +200,10 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
             busy = true
             scope.launch {
                 try {
-                    val snapshot = if (includeMap) mapView?.let { captureMapImage(it, mapExport, dark) } else null
+                    val shownExport = homeCentre?.takeIf { hideHome }?.let { (lat, lon) ->
+                        mapExport?.withoutArea(lat, lon, homeSettings.radiusKm.toDouble())
+                    } ?: mapExport
+                    val snapshot = if (includeMap) mapView?.let { captureMapImage(it, shownExport, dark) } else null
                     val options = ShareOptions(
                         title = title,
                         message = message,

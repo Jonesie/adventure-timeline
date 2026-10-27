@@ -70,6 +70,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
@@ -97,6 +98,7 @@ fun TripDetailScreen(
     onPickMedia: () -> Unit,
     onAutoAddMedia: () -> Unit,
     onOpenMedia: (Int) -> Unit,
+    onReviewNearby: () -> Unit,
     onRecordAudio: () -> Unit,
     onImportAudio: () -> Unit,
     onAddImpression: () -> Unit,
@@ -111,6 +113,12 @@ fun TripDetailScreen(
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var editingGroup by remember { mutableStateOf<LegGroup?>(null) }
     var showBulkTransport by remember { mutableStateOf(false) }
+    // Quietly index gallery photo locations, then count any along this route that aren't in a trip yet.
+    var nearbyCount by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(tripId, detail?.media?.size) {
+        viewModel.scanGallery()
+        nearbyCount = viewModel.unassignedNearRouteCount(tripId)
+    }
 
     Scaffold(
         topBar = {
@@ -229,7 +237,7 @@ fun TripDetailScreen(
                 when (selectedTab) {
                     0 -> OverviewTab(tripId, viewModel, trip, onOpenMap, onOpenMedia, onRate = { viewModel.setTripRating(tripId, it) })
                     1 -> LegsTab(legGroups, onEditGroup = { editingGroup = it })
-                    2 -> MediaTab(trip, importProgress, onPickMedia, onAutoAddMedia, onOpenMedia)
+                    2 -> MediaTab(trip, importProgress, onPickMedia, onAutoAddMedia, onOpenMedia, nearbyCount, onReviewNearby)
                     3 -> NotesTab(trip)
                     else -> ShareTab(tripId, viewModel, trip)
                 }

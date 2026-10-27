@@ -147,6 +147,15 @@ interface TravelDiaryDao {
 
     @Query("DELETE FROM companions") suspend fun deleteAllCompanions()
 
+    // Gallery location index (a cache, not part of backups).
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
+    suspend fun insertGalleryItems(items: List<GalleryIndexItem>)
+
+    @Query("SELECT uri FROM gallery_index") suspend fun getIndexedUris(): List<String>
+    @Query("SELECT * FROM gallery_index WHERE lat IS NOT NULL AND lon IS NOT NULL") suspend fun getLocatedGallery(): List<GalleryIndexItem>
+    @Query("SELECT COUNT(*) FROM gallery_index") suspend fun galleryIndexSize(): Int
+    @Query("DELETE FROM gallery_index WHERE uri IN (:uris)") suspend fun deleteGalleryItems(uris: List<String>)
+
     @Query("SELECT * FROM route_points WHERE tripId = :tripId ORDER BY timestamp")
     suspend fun getRoutePointsForTrip(tripId: Long): List<RoutePoint>
 

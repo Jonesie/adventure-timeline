@@ -60,7 +60,9 @@ fun MediaTab(
     progress: MediaImportProgress?,
     onPickMedia: () -> Unit,
     onAutoAddMedia: () -> Unit,
-    onOpen: (Int) -> Unit
+    onOpen: (Int) -> Unit,
+    nearbyCount: Int? = null,
+    onReviewNearby: () -> Unit = {}
 ) {
     val items = remember(trip.media) { trip.sortedMedia() }
     val imageLoader = rememberMediaImageLoader()
@@ -77,6 +79,24 @@ fun MediaTab(
             OutlinedButton(onClick = onAutoAddMedia, modifier = Modifier.weight(1f)) {
                 Icon(Icons.Filled.PhotoLibrary, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
                 Text("From camera", maxLines = 1)
+            }
+        }
+
+        if (nearbyCount != null && nearbyCount > 0) {
+            androidx.compose.material3.Card(
+                onClick = onReviewNearby,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Text(
+                        "$nearbyCount photo${if (nearbyCount == 1) "" else "s"} taken along this route aren't in any trip.",
+                        modifier = Modifier.weight(1f)
+                    )
+                    androidx.compose.material3.TextButton(onClick = onReviewNearby) { Text("Review") }
+                }
             }
         }
 

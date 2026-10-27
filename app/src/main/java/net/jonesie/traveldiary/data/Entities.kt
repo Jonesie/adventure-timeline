@@ -123,3 +123,16 @@ data class Impression(
     val lat: Double? = null,
     val lon: Double? = null
 )
+
+/**
+ * A cache of where each photo/video in the phone's gallery was taken, so the app can find ones near a
+ * trip's route without re-reading every file. [lat]/[lon] are null for items with no location.
+ */
+@Entity(tableName = "gallery_index")
+data class GalleryIndexItem(
+    @PrimaryKey val uri: String,
+    val type: MediaType,
+    val takenAt: Long,
+    val lat: Double?,
+    val lon: Double?
+)

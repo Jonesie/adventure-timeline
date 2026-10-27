@@ -28,11 +28,19 @@ object MediaLocation {
 
     fun read(context: Context, item: MediaItem): LatLon? {
         if (item.lat != null && item.lon != null) return LatLon(item.lat, item.lon)
-        if (item.type == MediaType.AUDIO) return null
-        val uri = Uri.parse(item.uri)
+        return readUri(context, Uri.parse(item.uri), item.type)
+    }
+
+    /** True when gallery files will reveal their real location (always true before Android 10). */
+    fun hasOriginalAccess(context: Context): Boolean =
+        Build.VERSION.SDK_INT < 29 ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_MEDIA_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    fun readUri(context: Context, uri: Uri, type: MediaType): LatLon? {
+        if (type == MediaType.AUDIO) return null
         val original = originalUri(context, uri)
-        return runCatching { fromFile(context, original, item.type) }.getOrNull()
-            ?: if (original != uri) runCatching { fromFile(context, uri, item.type) }.getOrNull() else null
+        return runCatching { fromFile(context, original, type) }.getOrNull()
+            ?: if (original != uri) runCatching { fromFile(context, uri, type) }.getOrNull() else null
     }
 
     private fun originalUri(context: Context, uri: Uri): Uri =

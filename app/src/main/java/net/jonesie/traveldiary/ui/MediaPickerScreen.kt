@@ -59,13 +59,19 @@ import net.jonesie.traveldiary.util.TripTimeWindow
 import java.text.DateFormat
 import java.util.Date
 
+enum class PickerMode(val label: String) {
+    DATES("Trip dates"),
+    NEAR("Near route"),
+    ALL("All photos")
+}
+
 /**
  * Pick photos and videos from anywhere on the phone. Opens on the trip's own dates so the
  * likely candidates are on screen straight away; "All photos" widens it to the whole library.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MediaPickerScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
+fun MediaPickerScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: () -> Unit, initialMode: PickerMode = PickerMode.DATES) {
     val context = LocalContext.current
     val detail by remember(tripId) { viewModel.tripDetail(tripId) }.collectAsState(initial = null)
     val trip = detail
@@ -76,16 +82,36 @@ fun MediaPickerScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: () 
 
     val window = remember(trip.trip.startDate, trip.trip.endDate) { TripTimeWindow.of(trip.trip) }
     val alreadyAdded = remember(trip.media) { trip.media.map { it.uri }.toSet() }
-    var allDates by rememberSaveable { mutableStateOf(false) }
+    var mode by rememberSaveable { mutableStateOf(initialMode) }
+    val allDates = mode == PickerMode.ALL
+    var radiusKm by rememberSaveable { mutableStateOf(2) }
+    var notInAnyTrip by rememberSaveable { mutableStateOf(true) }
+    var skipHome by rememberSaveable { mutableStateOf(true) }
+    val homeSettings by viewModel.homeSettings.collectAsState()
+    var needsLocationAccess by remember { mutableStateOf(false) }
+    var retry by remember { mutableStateOf(0) }
+    val scan by viewModel.galleryScan.collectAsState()
+    val askLocationAccess = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { retry++ }
     var items by remember { mutableStateOf<List<CameraRoll.Item>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     val imageLoader = rememberMediaImageLoader()
 
-    LaunchedEffect(window, allDates) {
+    LaunchedEffect(window, mode, radiusKm, notInAnyTrip, skipHome, homeSettings, retry) {
         loading = true
-        items = withContext(Dispatchers.IO) {
-            CameraRoll.find(context, if (allDates) null else window, cameraOnly = false, newestFirst = allDates)
+        needsLocationAccess = false
+        items = if (mode == PickerMode.NEAR) {
+            // Reads each photo's location once (first run takes a while), then matches against the route.
+            if (viewModel.scanGallery() == ScanOutcome.NEEDS_PERMISSION) {
+                needsLocationAccess = true
+                emptyList()
+            } else {
+                viewModel.nearRoutePhotos(tripId, radiusKm.toDouble(), notInAnyTrip, skipHome)
+            }
+        } else {
+            withContext(Dispatchers.IO) {
+                CameraRoll.find(context, if (allDates) null else window, cameraOnly = false, newestFirst = allDates)
+            }
         }
         loading = false
     }
@@ -133,8 +159,9 @@ fun MediaPickerScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: () 
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilterChip(selected = !allDates, onClick = { allDates = false }, label = { Text("Trip dates") })
-                FilterChip(selected = allDates, onClick = { allDates = true }, label = { Text("All photos") })
+                PickerMode.entries.forEach { m ->
+                    FilterChip(selected = mode == m, onClick = { mode = m }, label = { Text(m.label) })
+                }
                 Box(modifier = Modifier.weight(1f))
                 TextButton(
                     enabled = selectable.isNotEmpty(),
@@ -144,9 +171,25 @@ fun MediaPickerScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: () 
                     }
                 ) { Text(if (selectable.isNotEmpty() && selected.size == selectable.size) "Clear" else "Select all") }
             }
+            if (mode == PickerMode.NEAR) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(1, 2, 5).forEach { km ->
+                        FilterChip(selected = radiusKm == km, onClick = { radiusKm = km }, label = { Text("$km km") })
+                    }
+                    FilterChip(selected = notInAnyTrip, onClick = { notInAnyTrip = !notInAnyTrip }, label = { Text("Not in any trip") })
+                    if (homeSettings.mode != HomeMode.OFF) {
+                        FilterChip(selected = skipHome, onClick = { skipHome = !skipHome }, label = { Text("Skip home area") })
+                    }
+                }
+            }
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 val dateFormat = DateFormat.getDateInstance(DateFormat.MEDIUM)
                 Text(
+                    if (mode == PickerMode.NEAR) "${items.size} within $radiusKm km of this route" else
                     if (allDates) "${items.size} items" else
                         "${dateFormat.format(Date(window.first))} – ${dateFormat.format(Date(window.last))} · ${items.size} items",
                     style = MaterialTheme.typography.bodySmall,
@@ -159,11 +202,31 @@ fun MediaPickerScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: () 
 
             when {
                 loading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        scan?.let {
+                            Text(
+                                "Reading photo locations… ${it.done} of ${it.total}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(top = 12.dp)
+                            )
+                            Text("This only happens the first time.", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+                needsLocationAccess -> Column(modifier = Modifier.padding(top = 24.dp)) {
+                    Text("To find photos by where they were taken, the app needs access to the location stored in your photos.")
+                    TextButton(onClick = { askLocationAccess.launch(android.Manifest.permission.ACCESS_MEDIA_LOCATION) }) {
+                        Text("Allow photo locations")
+                    }
                 }
                 items.isEmpty() -> Text(
-                    if (allDates) "No photos or videos found on this phone."
-                    else "Nothing on this phone was taken during this trip. Try “All photos”.",
+                    when {
+                        mode == PickerMode.NEAR -> "No photos with a location were found along this route." +
+                            if (notInAnyTrip) " Try a wider distance, or turn off “Not in any trip”." else " Try a wider distance."
+                        allDates -> "No photos or videos found on this phone."
+                        else -> "Nothing on this phone was taken during this trip. Try “Near route” or “All photos”."
+                    },
                     modifier = Modifier.padding(top = 24.dp)
                 )
                 else -> LazyVerticalGrid(

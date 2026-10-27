@@ -37,9 +37,13 @@ All data is stored on the device (Room/SQLite). Nothing is synced automatically;
 - **Photo viewer**: pinch/double-tap to zoom, and the place a photo or video was taken (from its
   metadata) with a tap to open it in a maps app. Gallery items need the "location info in photos"
   permission to reveal it.
+- **Find photos by location**: the gallery's photo locations are indexed once (in the background),
+  so Add from phone has a "Near route" mode (1/2/5 km, optionally only photos not in any trip) and the
+  Media tab suggests unassigned photos taken along the route. A home area (found from where trips
+  start and end, or set in Settings) is left out so photos taken around home aren't suggested for every trip.
 - **Share tab** on each trip: compose a title, the framed route map, a caption, companions (optional),
   notes and up to 7 photos, then share it as a high-resolution picture or a PDF through the phone's
-  share sheet. The route is redrawn sharp over the map tiles so it stays readable when zoomed.
+  share sheet. The route is redrawn sharp over the map tiles so it stays readable when zoomed. The home area can be hidden from the shared map.
 - **Themes**: light, dark, or follow the system (Settings → Appearance). Map tiles are inverted in dark mode.
 - **Settings**: back up the whole diary (trips, routes, notes, attached files) to one zip you save
   anywhere, e.g. Drive, and restore from it (restore replaces the current diary). "Free up space"

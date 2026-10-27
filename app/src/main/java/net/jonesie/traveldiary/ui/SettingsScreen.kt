@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.People
@@ -63,6 +64,26 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
     var showReminderOptions by remember { mutableStateOf(false) }
     val themeMode by viewModel.themeMode.collectAsState()
     var showThemeOptions by remember { mutableStateOf(false) }
+    var showHomeOptions by remember { mutableStateOf(false) }
+    val homeSettings by viewModel.homeSettings.collectAsState()
+    val homeContext = androidx.compose.ui.platform.LocalContext.current
+    var homeCentre by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    var homePlace by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(homeSettings) {
+        homeCentre = viewModel.homeCentre()
+        homePlace = homeCentre?.let { (lat, lon) ->
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                net.jonesie.traveldiary.util.ReverseGeocoder.lookup(homeContext, lat, lon)?.format(overseas = false)
+            }
+        }
+    }
+    val locateHome = rememberLocateAction { point -> viewModel.setHomeHere(point.latitude, point.longitude) }
+    val homeSubtitle = when (homeSettings.mode) {
+        HomeMode.OFF -> "Off. Photos near any of your routes are suggested, including around home."
+        else -> (homeCentre?.let { (if (homeSettings.mode == HomeMode.AUTO) "Found from where your trips start" else "Set by you") +
+            (homePlace?.let { ", near $it" } ?: "") + ". Photos within ${homeSettings.radiusKm} km are left out of suggestions." }
+            ?: "Not found yet; it's worked out once several trips start in the same place.")
+    }
     var includeCameraRoll by remember { mutableStateOf(false) }
     var showBackupOptions by remember { mutableStateOf(false) }
     var estimate by remember { mutableStateOf<DiaryBackup.Estimate?>(null) }
@@ -119,6 +140,14 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
                 title = "Theme",
                 subtitle = themeMode.label,
                 onClick = { showThemeOptions = true }
+            )
+
+            SectionHeader("Photos")
+            SettingRow(
+                icon = { Icon(Icons.Filled.Home, contentDescription = null) },
+                title = "Home area",
+                subtitle = homeSubtitle,
+                onClick = { showHomeOptions = true }
             )
 
             SectionHeader("Import")
@@ -215,6 +244,46 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
                 }) { Text("Choose where to save") }
             },
             dismissButton = { TextButton(onClick = { showBackupOptions = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showHomeOptions) {
+        AlertDialog(
+            onDismissRequest = { showHomeOptions = false },
+            title = { Text("Home area") },
+            text = {
+                Column {
+                    Text("Trips start and end at home, so photos taken around home would otherwise be suggested for every trip. They're left out when looking for photos near a route.")
+                    listOf(
+                        HomeMode.AUTO to "Find it from where my trips start",
+                        HomeMode.CUSTOM to "Use my current location",
+                        HomeMode.OFF to "Don't leave any area out"
+                    ).forEach { (mode, label) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                if (mode == HomeMode.CUSTOM) locateHome() else viewModel.setHomeMode(mode)
+                            },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = homeSettings.mode == mode, onClick = null, modifier = Modifier.padding(12.dp))
+                            Text(label)
+                        }
+                    }
+                    if (homeSettings.mode != HomeMode.OFF) {
+                        Text("Radius (km)", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+                        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                            listOf(2, 5, 10, 20).forEach { km ->
+                                androidx.compose.material3.FilterChip(
+                                    selected = homeSettings.radiusKm == km,
+                                    onClick = { viewModel.setHomeRadius(km) },
+                                    label = { Text("$km", maxLines = 1) }
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showHomeOptions = false }) { Text("Done") } }
         )
     }
 

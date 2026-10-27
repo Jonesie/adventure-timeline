@@ -147,6 +147,33 @@ class MapExport(
 )
 
 /**
+ * The same map with everything inside a circle left out: route pieces, stops and photo pins, and the
+ * start/end dots. Used to keep where you live out of a shared picture.
+ */
+fun MapExport.withoutArea(centreLat: Double, centreLon: Double, radiusKm: Double): MapExport {
+    fun inside(p: GeoPoint) =
+        net.jonesie.traveldiary.util.RouteShape.distanceKm(centreLat, centreLon, p.latitude, p.longitude) <= radiusKm
+    val keptLines = lines.flatMap { line ->
+        val parts = mutableListOf<MutableList<GeoPoint>>()
+        var current = mutableListOf<GeoPoint>()
+        line.points.forEach { p ->
+            if (inside(p)) {
+                if (current.isNotEmpty()) { parts += current; current = mutableListOf() }
+            } else current.add(p)
+        }
+        if (current.isNotEmpty()) parts += current
+        parts.filter { it.size > 1 }.map { ExportLine(it, line.color, line.dashed) }
+    }
+    return MapExport(
+        lines = keptLines,
+        waypoints = waypoints.filterNot(::inside),
+        pins = pins.filterNot { inside(it.point) },
+        start = start?.takeUnless(::inside),
+        end = end?.takeUnless(::inside)
+    )
+}
+
+/**
  * A picture of the map for sharing: the tiles as they're framed on screen, scaled up by [scale], with
  * the route and markers redrawn on top at full sharpness (so they stay readable when zoomed).
  */

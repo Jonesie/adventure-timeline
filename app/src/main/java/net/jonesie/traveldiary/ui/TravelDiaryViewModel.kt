@@ -34,7 +34,10 @@ import net.jonesie.traveldiary.util.CameraRoll
 import net.jonesie.traveldiary.util.ContactsHelper
 import net.jonesie.traveldiary.util.DiaryBackup
 import net.jonesie.traveldiary.util.DuplicateCopies
+import net.jonesie.traveldiary.data.GalleryIndexItem
+import net.jonesie.traveldiary.util.HomeFinder
 import net.jonesie.traveldiary.util.MediaLocation
+import net.jonesie.traveldiary.util.RouteProximity
 import kotlinx.coroutines.sync.withLock
 import net.jonesie.traveldiary.util.MediaFiles
 import net.jonesie.traveldiary.util.PathPoint
@@ -49,6 +52,9 @@ import org.osmdroid.util.GeoPoint
 class TravelDiaryViewModel(application: Application) : AndroidViewModel(application) {
 
     private val dao = TravelDiaryDatabase.get(application).dao()
+
+    // Declared first: later properties read their saved values from it while the class is being built.
+    private val prefs = application.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
 
     val trips: StateFlow<List<Trip>> = dao.observeTrips()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -405,6 +411,129 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
 
     private val locationMutex = kotlinx.coroutines.sync.Mutex()
 
+    // ---- Finding gallery photos near a trip's route
+
+    // ---- Home area (left out of "near this route" photo suggestions)
+
+    private fun loadHome() = HomeSettings(
+        mode = runCatching { HomeMode.valueOf(prefs.getString("homeMode", null) ?: "") }.getOrDefault(HomeMode.AUTO),
+        lat = prefs.getString("homeLat", null)?.toDoubleOrNull(),
+        lon = prefs.getString("homeLon", null)?.toDoubleOrNull(),
+        radiusKm = prefs.getInt("homeRadiusKm", 10)
+    )
+    private val _homeSettings = MutableStateFlow(loadHome())
+    val homeSettings: StateFlow<HomeSettings> = _homeSettings.asStateFlow()
+
+    fun setHomeMode(mode: HomeMode) {
+        prefs.edit().putString("homeMode", mode.name).apply()
+        _homeSettings.value = loadHome()
+    }
+
+    fun setHomeHere(lat: Double, lon: Double) {
+        prefs.edit().putString("homeMode", HomeMode.CUSTOM.name).putString("homeLat", lat.toString()).putString("homeLon", lon.toString()).apply()
+        _homeSettings.value = loadHome()
+    }
+
+    fun setHomeRadius(km: Int) {
+        prefs.edit().putInt("homeRadiusKm", km).apply()
+        _homeSettings.value = loadHome()
+    }
+
+    /** The home centre as the settings define it: set by hand, found from where trips start and end, or off. */
+    suspend fun homeCentre(): Pair<Double, Double>? = withContext(Dispatchers.IO) {
+        val home = _homeSettings.value
+        when (home.mode) {
+            HomeMode.OFF -> null
+            HomeMode.CUSTOM -> if (home.lat != null && home.lon != null) home.lat to home.lon else null
+            HomeMode.AUTO -> {
+                val ends = dao.getAllRoutePoints().groupBy { it.tripId }.values.flatMap { trail ->
+                    val ordered = trail.sortedBy { it.timestamp }
+                    listOf(ordered.first(), ordered.last()).map { it.lat to it.lon }
+                }
+                HomeFinder.detect(ends)
+            }
+        }
+    }
+
+    private val _galleryScan = MutableStateFlow<GalleryScan?>(null)
+    /** Non-null while the gallery's photo locations are being read. */
+    val galleryScan: StateFlow<GalleryScan?> = _galleryScan.asStateFlow()
+    private val scanMutex = kotlinx.coroutines.sync.Mutex()
+
+    private fun canReadGallery(context: Application): Boolean {
+        val permission = if (android.os.Build.VERSION.SDK_INT >= 33) android.Manifest.permission.READ_MEDIA_IMAGES
+        else android.Manifest.permission.READ_EXTERNAL_STORAGE
+        return androidx.core.content.ContextCompat.checkSelfPermission(context, permission) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Brings the location index up to date with the gallery: only photos and videos not seen before
+     * are read, so the first run takes a while and later ones are quick. Needs library access and
+     * "location info in photos"; without both it does nothing and says so.
+     */
+    suspend fun scanGallery(): ScanOutcome = scanMutex.withLock {
+        withContext(Dispatchers.IO) {
+            val context = getApplication<Application>()
+            if (!canReadGallery(context) || !MediaLocation.hasOriginalAccess(context)) return@withContext ScanOutcome.NEEDS_PERMISSION
+            val all = CameraRoll.find(context, null, cameraOnly = false)
+            val known = dao.getIndexedUris().toHashSet()
+            val present = all.map { it.uri.toString() }.toHashSet()
+            // Forget photos that have since been deleted.
+            known.filter { it !in present }.chunked(500).forEach { dao.deleteGalleryItems(it) }
+
+            val fresh = all.filter { it.uri.toString() !in known }
+            if (fresh.isEmpty()) return@withContext ScanOutcome.DONE
+            _galleryScan.value = GalleryScan(0, fresh.size)
+            var done = 0
+            try {
+                fresh.chunked(24).forEach { chunk ->
+                    val rows = coroutineScope {
+                        chunk.map { item ->
+                            async {
+                                val location = runCatching { MediaLocation.readUri(context, item.uri, item.type) }.getOrNull()
+                                GalleryIndexItem(item.uri.toString(), item.type, item.takenAt, location?.lat, location?.lon)
+                            }
+                        }.awaitAll()
+                    }
+                    dao.insertGalleryItems(rows)
+                    done += chunk.size
+                    _galleryScan.value = GalleryScan(done, fresh.size)
+                }
+            } finally {
+                _galleryScan.value = null
+            }
+            ScanOutcome.DONE
+        }
+    }
+
+    /** Photos/videos from the gallery taken within [radiusKm] of the trip's route, newest first. */
+    suspend fun nearRoutePhotos(
+        tripId: Long,
+        radiusKm: Double,
+        notInAnyTrip: Boolean,
+        skipHomeArea: Boolean = true
+    ): List<CameraRoll.Item> =
+        withContext(Dispatchers.IO) {
+            val route = RouteProximity.of(dao.getRoutePointsForTrip(tripId), dao.getAllLegs().filter { it.tripId == tripId })
+            if (route.isEmpty) return@withContext emptyList()
+            val used = if (notInAnyTrip) dao.getAllMedia().map { it.uri }.toHashSet() else emptySet()
+            // Trips start and end at home, so photos taken around home would match every route.
+            val home = if (skipHomeArea) homeCentre() else null
+            val homeRadius = _homeSettings.value.radiusKm.toDouble()
+            dao.getLocatedGallery()
+                .filter { it.uri !in used && route.isNear(it.lat!!, it.lon!!, radiusKm) }
+                .filter { home == null || RouteShape.distanceKm(home.first, home.second, it.lat!!, it.lon!!) > homeRadius }
+                .map { CameraRoll.Item(Uri.parse(it.uri), it.type, it.takenAt) }
+                .sortedByDescending { it.takenAt }
+        }
+
+    /** How many unassigned gallery photos sit along the route, or null until the gallery has been indexed. */
+    suspend fun unassignedNearRouteCount(tripId: Long): Int? {
+        if (withContext(Dispatchers.IO) { dao.galleryIndexSize() } == 0) return null
+        return nearRoutePhotos(tripId, 2.0, notInAnyTrip = true).size
+    }
+
     /** True when gallery photos still lack a location and Android needs us to ask for access to it. */
     suspend fun galleryLocationPermissionNeeded(): Boolean = withContext(Dispatchers.IO) {
         val context = getApplication<Application>()
@@ -489,7 +618,6 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch { dao.deleteTripById(tripId) }
     }
 
-    private val prefs = application.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
 
     private fun loadBackupSettings() = BackupSettings(
         lastBackup = prefs.getLong("lastBackup", 0L).takeIf { it > 0 },
@@ -691,6 +819,14 @@ data class ListSort(val by: SortBy, val ascending: Boolean) {
         }
     }
 }
+
+enum class HomeMode { AUTO, CUSTOM, OFF }
+
+data class HomeSettings(val mode: HomeMode, val lat: Double?, val lon: Double?, val radiusKm: Int)
+
+data class GalleryScan(val done: Int, val total: Int)
+
+enum class ScanOutcome { DONE, NEEDS_PERMISSION }
 
 data class TripRoute(val trip: Trip, val lines: List<RouteLine>, val legs: List<Leg>, val media: List<MediaItem>)
 

@@ -15,9 +15,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Leg::class,
         MediaItem::class,
         Impression::class,
-        RoutePoint::class
+        RoutePoint::class,
+        GalleryIndexItem::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class TravelDiaryDatabase : RoomDatabase() {
@@ -52,13 +53,22 @@ abstract class TravelDiaryDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS gallery_index (uri TEXT NOT NULL, type TEXT NOT NULL, " +
+                        "takenAt INTEGER NOT NULL, lat REAL, lon REAL, PRIMARY KEY(uri))"
+                )
+            }
+        }
+
         fun get(context: Context): TravelDiaryDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     TravelDiaryDatabase::class.java,
                     "travel-diary.db"
-                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).fallbackToDestructiveMigration().build().also { instance = it }
+                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).fallbackToDestructiveMigration().build().also { instance = it }
             }
     }
 }

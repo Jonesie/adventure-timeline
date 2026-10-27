@@ -38,6 +38,7 @@ import net.jonesie.traveldiary.ui.ImportTimelineScreen
 import net.jonesie.traveldiary.ui.MediaPickerScreen
 import net.jonesie.traveldiary.ui.MediaViewerScreen
 import net.jonesie.traveldiary.ui.NearbyScreen
+import net.jonesie.traveldiary.ui.PickerMode
 import net.jonesie.traveldiary.ui.RecordAudioScreen
 import net.jonesie.traveldiary.ui.AppTheme
 import net.jonesie.traveldiary.ui.SettingsScreen
@@ -257,6 +258,10 @@ private fun TravelDiaryApp() {
                     if (hasAccess) runAutoAdd() else requestMediaPermissions.launch(mediaPermissions)
                 },
                 onOpenMedia = { index -> navController.navigate("tripDetail/$tripId/media/$index") },
+                onReviewNearby = {
+                    if (hasMediaAccess()) navController.navigate("tripDetail/$tripId/pick?mode=NEAR")
+                    else requestMediaForPicker.launch(mediaPermissions)
+                },
                 onRecordAudio = { navController.navigate("tripDetail/$tripId/recordAudio") },
                 onImportAudio = { importAudio.launch("audio/*") },
                 onAddImpression = { navController.navigate("tripDetail/$tripId/addImpression") },
@@ -279,11 +284,15 @@ private fun TravelDiaryApp() {
         }
 
         composable(
-            "tripDetail/{tripId}/pick",
-            arguments = listOf(navArgument("tripId") { type = NavType.LongType })
+            "tripDetail/{tripId}/pick?mode={mode}",
+            arguments = listOf(
+                navArgument("tripId") { type = NavType.LongType },
+                navArgument("mode") { type = NavType.StringType; defaultValue = "DATES" }
+            )
         ) { backStackEntry ->
             val tripId = backStackEntry.arguments?.getLong("tripId") ?: return@composable
-            MediaPickerScreen(tripId = tripId, viewModel = viewModel, onBack = { navController.popBackStack() })
+            val mode = runCatching { PickerMode.valueOf(backStackEntry.arguments?.getString("mode") ?: "") }.getOrDefault(PickerMode.DATES)
+            MediaPickerScreen(tripId = tripId, viewModel = viewModel, onBack = { navController.popBackStack() }, initialMode = mode)
         }
 
         composable(
