@@ -24,7 +24,7 @@ jobs:
       KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       HAS_PLAY_ACCOUNT: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Work out the version from the tag
         id: version
@@ -47,12 +47,12 @@ jobs:
             if [ -z "${!name}" ]; then echo "Missing secret $name (see docs/RELEASING.md)"; exit 1; fi
           done
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
@@ -74,7 +74,7 @@ jobs:
           "$ANDROID_HOME"/build-tools/*/apksigner verify --verbose "$APK" | head -5
 
       - name: Upload build outputs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-${{ steps.version.outputs.name }}
           path: |
@@ -82,7 +82,7 @@ jobs:
             app/build/outputs/apk/release/*.apk
 
       - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
