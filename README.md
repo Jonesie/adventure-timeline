@@ -33,6 +33,7 @@ All data is stored on the device (Room/SQLite). Nothing is synced automatically;
 - **Photo viewer**: pinch/double-tap to zoom, and the place a photo or video was taken (from its
   metadata) with a tap to open it in a maps app. Gallery items need the "location info in photos"
   permission to reveal it.
+- **Themes**: light, dark, or follow the system (Settings → Appearance). Map tiles are inverted in dark mode.
 - **Settings**: back up the whole diary (trips, routes, notes, attached files) to one zip you save
   anywhere, e.g. Drive, and restore from it (restore replaces the current diary). "Free up space"
   swaps duplicate imported copies for links to the originals in the gallery. Also holds "Delete all trips".

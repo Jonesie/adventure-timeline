@@ -62,6 +62,11 @@ fun centreOn(mapView: MapView, point: GeoPoint) {
     mapView.controller.animateTo(point)
 }
 
+/** Dark theme: invert the (light) map tiles so the map isn't a glaring white rectangle. */
+fun applyMapTheme(mapView: MapView, dark: Boolean) {
+    mapView.overlayManager.tilesOverlay.setColorFilter(if (dark) org.osmdroid.views.overlay.TilesOverlay.INVERT_COLORS else null)
+}
+
 /** A blue dot for "you are here". */
 fun addMyLocationMarker(mapView: MapView, point: GeoPoint) {
     val density = mapView.resources.displayMetrics.density

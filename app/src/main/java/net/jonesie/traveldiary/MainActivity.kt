@@ -12,6 +12,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -37,6 +39,7 @@ import net.jonesie.traveldiary.ui.MediaPickerScreen
 import net.jonesie.traveldiary.ui.MediaViewerScreen
 import net.jonesie.traveldiary.ui.NearbyScreen
 import net.jonesie.traveldiary.ui.RecordAudioScreen
+import net.jonesie.traveldiary.ui.AppTheme
 import net.jonesie.traveldiary.ui.SettingsScreen
 import net.jonesie.traveldiary.ui.TravelDiaryViewModel
 import net.jonesie.traveldiary.ui.TripDetailScreen
@@ -48,7 +51,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            androidx.compose.material3.MaterialTheme {
+            val viewModel: TravelDiaryViewModel = viewModel()
+            val themeMode by viewModel.themeMode.collectAsState()
+            AppTheme(themeMode) {
                 TravelDiaryApp()
             }
         }

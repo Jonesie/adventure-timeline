@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
@@ -59,6 +60,8 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
     val progress by viewModel.backupProgress.collectAsState()
     val backupSettings by viewModel.backupSettings.collectAsState()
     var showReminderOptions by remember { mutableStateOf(false) }
+    val themeMode by viewModel.themeMode.collectAsState()
+    var showThemeOptions by remember { mutableStateOf(false) }
     var includeCameraRoll by remember { mutableStateOf(false) }
     var showBackupOptions by remember { mutableStateOf(false) }
     var estimate by remember { mutableStateOf<DiaryBackup.Estimate?>(null) }
@@ -109,6 +112,14 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
+            SectionHeader("Appearance")
+            SettingRow(
+                icon = { Icon(Icons.Filled.Palette, contentDescription = null) },
+                title = "Theme",
+                subtitle = themeMode.label,
+                onClick = { showThemeOptions = true }
+            )
+
             SectionHeader("Backup")
             SettingRow(
                 icon = { Icon(Icons.Filled.Save, contentDescription = null) },
@@ -193,6 +204,30 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
                 }) { Text("Choose where to save") }
             },
             dismissButton = { TextButton(onClick = { showBackupOptions = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showThemeOptions) {
+        AlertDialog(
+            onDismissRequest = { showThemeOptions = false },
+            title = { Text("Theme") },
+            text = {
+                Column {
+                    ThemeMode.entries.forEach { mode ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                viewModel.setThemeMode(mode)
+                                showThemeOptions = false
+                            },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = themeMode == mode, onClick = null, modifier = Modifier.padding(12.dp))
+                            Text(mode.label)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showThemeOptions = false }) { Text("Close") } }
         )
     }
 

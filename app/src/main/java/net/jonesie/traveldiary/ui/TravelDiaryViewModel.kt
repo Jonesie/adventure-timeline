@@ -485,6 +485,16 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         snoozedUntil = prefs.getLong("snoozedUntil", 0L)
     )
 
+    private val _themeMode = MutableStateFlow(
+        runCatching { ThemeMode.valueOf(prefs.getString("themeMode", null) ?: "") }.getOrDefault(ThemeMode.SYSTEM)
+    )
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    fun setThemeMode(mode: ThemeMode) {
+        prefs.edit().putString("themeMode", mode.name).apply()
+        _themeMode.value = mode
+    }
+
     private val _backupSettings = MutableStateFlow(loadBackupSettings())
     val backupSettings: StateFlow<BackupSettings> = _backupSettings.asStateFlow()
 

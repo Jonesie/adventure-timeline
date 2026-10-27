@@ -343,6 +343,7 @@ private fun TripsMap(
     val latestRoutes by rememberUpdatedState(routes)
     val latestSelect by rememberUpdatedState(onSelect)
     val latestOpenPin by rememberUpdatedState(onOpenPin)
+    val dark = isDarkTheme()
     val allPoints = remember(fitTo) { fitTo.flatMap { r -> r.lines.flatMap { it.points } } }
 
     // clipToBounds: see RouteMap — osmdroid's canvas scaling otherwise spills over neighbouring UI.
@@ -354,6 +355,7 @@ private fun TripsMap(
                 MapView(ctx).apply {
                     setTileSource(TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
+                    applyMapTheme(this, dark)
                     onMapReady(this)
                 }
             },

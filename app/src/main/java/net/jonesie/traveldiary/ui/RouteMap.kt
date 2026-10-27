@@ -154,7 +154,8 @@ private fun drawOverlays(
     waypoints: List<Waypoint>,
     myLocation: GeoPoint?,
     pins: List<PhotoPin>,
-    onOpenPin: (PhotoPin) -> Unit
+    onOpenPin: (PhotoPin) -> Unit,
+    dark: Boolean
 ) {
     val density = mapView.resources.displayMetrics.density
     mapView.overlays.clear()
@@ -172,7 +173,7 @@ private fun drawOverlays(
         val color = difficultyColor(segment.level)
         mapView.overlays.add(Polyline().apply {
             setPoints(segment.points)
-            outlinePaint.color = color?.toArgb() ?: android.graphics.Color.BLACK
+            outlinePaint.color = color?.toArgb() ?: if (dark) 0xFFE0E0E0.toInt() else android.graphics.Color.BLACK
             outlinePaint.strokeWidth = (if (color != null) 4f else 3.5f) * density
             if (segment.dashed) outlinePaint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(18f * density, 12f * density), 0f)
         })
@@ -248,6 +249,7 @@ fun RouteMap(
     val latestOpen by rememberUpdatedState(onOpenMedia)
 
     val state = remember { RouteMapState() }
+    val dark = isDarkTheme()
     var mapRef by remember { mutableStateOf<MapView?>(null) }
     var myLocation by remember { mutableStateOf<GeoPoint?>(null) }
     val locate = rememberLocateAction { point ->
@@ -266,11 +268,12 @@ fun RouteMap(
                     setTileSource(TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
                     mapRef = this
+                    applyMapTheme(this, dark)
                 }
             },
             update = { mapView ->
                 if (state.drawn != segments || state.drawnWaypoints != shownWaypoints || state.drawnLocation != myLocation || state.drawnPins != shownPins) {
-                    drawOverlays(mapView, segments, allPoints, shownWaypoints, myLocation, shownPins) { pin -> latestOpen?.invoke(pin.index) }
+                    drawOverlays(mapView, segments, allPoints, shownWaypoints, myLocation, shownPins, { pin -> latestOpen?.invoke(pin.index) }, dark)
                     state.drawnPins = shownPins
                     state.drawn = segments
                     state.drawnWaypoints = shownWaypoints
@@ -349,7 +352,7 @@ private fun DifficultyLegend(showUnrated: Boolean, modifier: Modifier = Modifier
                 if (level < 5) Box(modifier = Modifier.width(3.dp))
             }
             if (showUnrated) {
-                Box(modifier = Modifier.padding(start = 8.dp).size(width = 16.dp, height = 3.dp).background(Color.Black))
+                Box(modifier = Modifier.padding(start = 8.dp).size(width = 16.dp, height = 3.dp).background(MaterialTheme.colorScheme.onSurface))
                 Text("Not rated", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(start = 4.dp))
             }
         }
