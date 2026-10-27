@@ -177,6 +177,8 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
                 subtitle = "Removes every trip, leg, photo, audio and impression.",
                 onClick = { confirmDeleteAll = true }
             )
+
+            CoffeeButton()
         }
     }
 
@@ -345,6 +347,35 @@ private fun sizeText(bytes: Long): String = when {
     bytes >= 1_000_000_000 -> "%.1f GB".format(bytes / 1e9)
     bytes >= 1_000_000 -> "%.0f MB".format(bytes / 1e6)
     else -> "under 1 MB"
+}
+
+/**
+ * The same support link as threedeeforge: drawn locally rather than loaded from Buy Me a Coffee's
+ * image CDN, so the app makes no network request just to show it.
+ */
+@Composable
+private fun CoffeeButton() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.material3.Surface(
+        onClick = {
+            runCatching {
+                context.startActivity(
+                    android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://buymeacoffee.com/jonesie"))
+                )
+            }
+        },
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+        color = androidx.compose.ui.graphics.Color(0xFFFFDD00),
+        contentColor = androidx.compose.ui.graphics.Color(0xFF1A1A1A),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp)
+    ) {
+        Text(
+            "☕ Buy me a coffee",
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)
+        )
+    }
 }
 
 @Composable
