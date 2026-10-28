@@ -17,14 +17,15 @@ Adventure Timeline is a personal travel diary for Android. It is built to keep y
 Everything below is created by you or imported by you, and is kept in the app's private storage on your phone:
 
 - **Trips and legs:** titles, dates, notes, ratings, transport types, difficulty and enjoyment ratings, and the places and times of each leg.
-- **Routes:** the GPS trail for a trip, if you import it from a Google Timeline export that you supply. The app does not record your location in the background.
+- **Routes:** the GPS trail for a trip, if you import it from a Google Maps Timeline export that you supply. The app reads that file on your phone and does not contact Google. It does not record your location in the background.
 - **Photos, videos and audio:** photos and videos you take in the app or import are copied into the app's storage. Items you add from your gallery are *linked*, not copied; they stay where they are.
 - **Notes and impressions,** with the time and (if allowed) the location you were at when you wrote them.
 - **Companions:** names you type. If you allow access to contacts, a companion can be linked to a contact by its Android contact identifier.
 - **A location index of your gallery:** to suggest photos taken near a trip's route, the app reads where each gallery photo and video was taken and keeps a small cache of those locations. Nothing about the pictures themselves is copied.
+- **A home area:** the app works out roughly where "home" is from where your trips usually start and end (or uses a place you choose, or none). It is used only on your phone, to avoid suggesting photos taken at home for a trip and to leave home off maps you share.
 - **Settings:** your theme, sort order, map view, home area and reminder choices.
 
-This data never leaves your phone unless you do one of the things listed under "Backups and sharing".
+This data never leaves your phone unless you do one of the things listed under "Backups and sharing". The app's source code is public, so you can check these statements for yourself.
 
 ## Permissions and why they are requested
 
@@ -60,6 +61,10 @@ These happen only when you ask for them:
 ## Keeping and deleting your data
 
 Your data stays until you remove it. You can delete a trip, a photo or a note inside the app, or choose **Settings → Delete all trips**. Uninstalling the app removes everything it stored on the device. Copies you made yourself (backups, shared pictures) are outside the app and stay until you delete them.
+
+## Google
+
+Adventure Timeline is an independent project. It is not made, endorsed or sponsored by Google. "Google" and "Google Maps Timeline" are trademarks of Google LLC, used here only to describe the files the app can import.
 
 ## Children
 
