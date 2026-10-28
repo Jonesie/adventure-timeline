@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 
+private const val WEBSITE_URL = "https://jonesie.github.io/adventure-timeline/"
 private const val SOURCE_URL = "https://github.com/Jonesie/adventure-timeline"
 private const val PRIVACY_URL = "https://jonesie.github.io/adventure-timeline/privacy/"
 
@@ -100,6 +101,7 @@ fun AboutScreen(onBack: () -> Unit) {
             )
 
             Heading("Links")
+            LinkText("Website and user guide", onClick = { open(WEBSITE_URL) })
             LinkText("Source code and issues", onClick = { open(SOURCE_URL) })
             LinkText("Privacy policy", onClick = { open(PRIVACY_URL) })
 
