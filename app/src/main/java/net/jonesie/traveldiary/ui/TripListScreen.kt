@@ -62,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import net.jonesie.traveldiary.data.MediaType
 import net.jonesie.traveldiary.data.Trip
 import java.text.DateFormat
@@ -162,7 +163,8 @@ fun TripListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Adventure Timeline") },
+                // This bar has four actions, so the app name needs to be a little smaller to stay on one line.
+                title = { Text("Adventure Timeline", fontSize = 18.sp, maxLines = 1) },
                 actions = {
                     IconButton(onClick = {
                         searching = !searching

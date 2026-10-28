@@ -7,6 +7,8 @@ already found, then add the ratings, photos and notes that make them memorable.
 
 Adventure Timeline is an independent project and is not affiliated with or endorsed by Google.
 
+Website and user guide: <https://jonesie.github.io/adventure-timeline/>
+
 All data is stored on the device (Room/SQLite). Nothing is synced automatically; use Settings to back up.
 
 ## Screenshots
@@ -23,8 +25,8 @@ The route map fills the screen too:
 
 <p><img src="docs/screenshots/trip-map.png" width="30%" alt="Full-screen trip map"></p>
 
-*Trips, in order: the list, a trip's Map tab, its legs, its media and the stats. Faces and
-names in the screenshots are blurred.*
+*Trips, in order: the list, a trip's Map tab, its legs, its media and the stats. A companion's
+name is blurred.*
 
 ## Features
 

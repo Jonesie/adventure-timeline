@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adventure Timeline: a private travel diary for Android</title>
+<meta name="description" content="Adventure Timeline is a private, offline-first travel diary for Android. Import your Google Maps Timeline trips, then add ratings, photos, voice notes and stories. No account, no ads, no tracking.">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Adventure Timeline: a private travel diary for Android">
+<meta property="og:description" content="Import the trips Google Maps Timeline found, then add the photos, ratings and notes that make them memorable. Everything stays on your phone.">
+<meta property="og:image" content="https://jonesie.github.io/adventure-timeline/assets/banner.jpg">
+<meta property="og:url" content="https://jonesie.github.io/adventure-timeline/">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+:root{
+  --bg:#fbf7ef; --surface:#ffffff; --ink:#2a1f17; --muted:#6b5d50; --line:#e8dfd0;
+  --accent:#d9650f; --accent-ink:#ffffff; --accent-soft:#fff0df; --green:#3f6b4f;
+  --shadow:0 1px 2px rgba(42,31,23,.06),0 8px 24px rgba(42,31,23,.08);
+  --radius:16px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#14110d; --surface:#1e1a15; --ink:#f3eadb; --muted:#b7a995; --line:#342e26;
+    --accent:#f08a35; --accent-ink:#1b1209; --accent-soft:#2a2016; --green:#8cc3a0;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+a{color:var(--accent)}
+img{max-width:100%;height:auto;display:block}
+figure{margin:0}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+h1,h2,h3{line-height:1.2;margin:0 0 .5em}
+h2{font-size:clamp(1.55rem,3.4vw,2.05rem);letter-spacing:-.01em}
+h3{font-size:1.1rem}
+p{margin:0 0 1em}
+section{padding:56px 0}
+.lede{color:var(--muted);font-size:1.12rem;max-width:62ch}
+
+/* top bar */
+header.top{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+header.top .wrap{display:flex;align-items:center;gap:16px;min-height:58px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--ink);text-decoration:none;white-space:nowrap}
+.brand img{width:32px;height:32px;border-radius:8px}
+nav{margin-left:auto;display:flex;gap:18px;flex-wrap:wrap;justify-content:flex-end}
+nav a{color:var(--muted);text-decoration:none;font-size:.95rem}
+nav a:hover{color:var(--ink)}
+@media(max-width:640px){nav a.opt{display:none}nav{gap:14px;flex-wrap:nowrap}nav a{white-space:nowrap}.brand{font-size:.95rem}}
+@media(max-width:400px){nav a:nth-child(5){display:none}}
+
+/* hero */
+.hero{padding:28px 0 8px}
+.banner{border-radius:20px;overflow:hidden;box-shadow:var(--shadow);aspect-ratio:1600/781;background:#223}
+.banner img{width:100%;height:100%;object-fit:cover}
+.hero-copy{text-align:center;padding:34px 0 8px}
+.hero-copy h1{font-size:clamp(1.9rem,5vw,3rem);letter-spacing:-.02em}
+.hero-copy .lede{margin:0 auto 22px}
+.cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:999px;font-weight:600;text-decoration:none;border:1.5px solid var(--accent);color:var(--accent);background:transparent}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn[aria-disabled=true]{opacity:.6;border-style:dashed;cursor:default}
+.note{color:var(--muted);font-size:.9rem;margin-top:14px}
+
+/* feature cards */
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin-top:24px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+.card .ico{font-size:1.6rem;line-height:1;margin-bottom:10px}
+.card p{margin:0;color:var(--muted);font-size:.98rem}
+
+/* screenshots */
+.shots{display:flex;gap:18px;overflow-x:auto;padding:10px 4px 22px;margin:0 -4px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+.shot{flex:0 0 auto;width:min(240px,62vw);scroll-snap-align:start;text-align:center}
+.shot img{border-radius:22px;border:6px solid #1c1c1f;box-shadow:var(--shadow);background:#1c1c1f}
+.shot figcaption{margin-top:10px;font-size:.9rem;color:var(--muted)}
+@media(min-width:960px){.shots{justify-content:center;overflow:visible}.shot{width:calc((100% - 72px)/5)}}
+.fine{color:var(--muted);font-size:.88rem}
+
+/* how to */
+.steps{counter-reset:step;display:grid;gap:16px;margin-top:24px}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px 22px 18px 74px;position:relative;box-shadow:var(--shadow)}
+.step::before{counter-increment:step;content:counter(step);position:absolute;left:20px;top:20px;width:38px;height:38px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:700;display:grid;place-items:center}
+.step h3{margin-bottom:.35em}
+.step p,.step li{color:var(--muted)}
+.step ul,.step ol{margin:.2em 0 .6em;padding-left:1.2em}
+.step li{margin:.2em 0}
+.step b,.step strong{color:var(--ink)}
+.tabs{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin:.6em 0 0;padding:0;list-style:none}
+.tabs li{background:var(--accent-soft);border-radius:12px;padding:10px 14px;margin:0;color:var(--ink)}
+.tabs li b{color:var(--accent)}
+kbd{font:inherit;font-weight:600;background:var(--accent-soft);color:var(--ink);padding:1px 8px;border-radius:8px;border:1px solid var(--line);white-space:nowrap}
+
+/* faq */
+details{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin:12px 0}
+summary{cursor:pointer;font-weight:600}
+details[open] summary{margin-bottom:.5em}
+details p{color:var(--muted);margin:0}
+
+footer{border-top:1px solid var(--line);padding:34px 0 48px;color:var(--muted);font-size:.92rem}
+footer .links{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px}
+footer a{color:var(--muted)}
+footer a:hover{color:var(--ink)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/icon.png" alt="" width="32" height="32"> Adventure Timeline</a>
+    <nav aria-label="Main">
+      <a class="opt" href="#features">Features</a>
+      <a href="#how">How to use</a>
+      <a class="opt" href="#faq">FAQ</a>
+      <a class="opt" href="privacy/">Privacy</a>
+      <a href="https://github.com/Jonesie/adventure-timeline">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <div class="wrap hero">
+    <div class="banner">
+      <img src="assets/banner.jpg" width="1600" height="781" alt="Adventure Timeline: an old Land Rover and an adventure motorbike parked on a gravel road above a braided river, with the Southern Alps at sunrise">
+    </div>
+    <div class="hero-copy">
+      <h1>Your private travel diary</h1>
+      <p class="lede">Bring in the trips Google Maps Timeline already found, then add the photos, ratings and stories that make each one memorable. Everything stays on your phone.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/Jonesie/adventure-timeline/releases/latest">Download for Android</a>
+        <span class="btn" aria-disabled="true">Google Play: coming soon</span>
+      </div>
+      <p class="note">Free and open source. No account, no ads, no tracking. Needs Android 8.0 or newer.</p>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="wrap">
+      <h2>What it does</h2>
+      <p class="lede">A diary for the trips you take: where you went, how you got there, who with, and what you saw.</p>
+      <div class="grid">
+        <div class="card"><div class="ico">🧭</div><h3>Starts with your Timeline</h3><p>Import the trips Google Maps Timeline has already detected, with their legs, transport and route. Re-import later and your own edits are kept.</p></div>
+        <div class="card"><div class="ico">🗺️</div><h3>Route maps that tell the story</h3><p>See every trip on an OpenStreetMap route. Legs are coloured by how hard they were, and the home screen shows all your trips on one map, coloured by star rating.</p></div>
+        <div class="card"><div class="ico">📸</div><h3>Photos, video and voice notes</h3><p>Capture them in the app, or link the ones already on your phone. Photos taken along your route are suggested for the trip, and they show up as pins on the map.</p></div>
+        <div class="card"><div class="ico">⭐</div><h3>Rate and remember</h3><p>Give each trip a star rating, and each leg a difficulty and an enjoyment score. Quick timestamped notes capture how it felt at the time.</p></div>
+        <div class="card"><div class="ico">📤</div><h3>Share a trip</h3><p>Turn a trip into a high-resolution picture or a PDF with the map, your notes and your best photos. Your home area can be left off the map.</p></div>
+        <div class="card"><div class="ico">🔒</div><h3>Private by design</h3><p>No account, no ads, no analytics. Your diary lives on your phone, and a one-tap backup zip goes wherever you choose, such as Drive or your computer.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screenshots" style="padding-top:8px">
+    <div class="wrap">
+      <h2>A look inside</h2>
+      <div class="shots" role="list">
+        <figure class="shot" role="listitem"><img src="screenshots/trips.png" width="600" height="1170" loading="lazy" alt="List of trips with star ratings"><figcaption>Your trips</figcaption></figure>
+        <figure class="shot" role="listitem"><img src="screenshots/trip-route.png" width="600" height="1170" loading="lazy" alt="A trip's route on the map, coloured by difficulty"><figcaption>Route map</figcaption></figure>
+        <figure class="shot" role="listitem"><img src="screenshots/trip-legs.png" width="600" height="1170" loading="lazy" alt="The legs of a trip with transport, times and ratings"><figcaption>Legs</figcaption></figure>
+        <figure class="shot" role="listitem"><img src="screenshots/trip-media.png" width="600" height="1170" loading="lazy" alt="Photos and videos attached to a trip"><figcaption>Photos and video</figcaption></figure>
+        <figure class="shot" role="listitem"><img src="screenshots/stats.png" width="600" height="1170" loading="lazy" alt="Trip stats: totals and distance by transport"><figcaption>Stats</figcaption></figure>
+      </div>
+      <p class="fine">A companion's name is blurred. The photos and videos are real ones from the trip.</p>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <h2>How to use it</h2>
+      <p class="lede">Five minutes to your first trip.</p>
+      <div class="steps">
+
+        <div class="step">
+          <h3>Install the app</h3>
+          <p>Google Play is coming soon. Until then, open the <a href="https://github.com/Jonesie/adventure-timeline/releases/latest">latest release</a> on your phone, download <b>app-release.apk</b> and open it. Android will ask you to allow installs from your browser or file manager the first time.</p>
+        </div>
+
+        <div class="step">
+          <h3>Add your first trips</h3>
+          <p><b>Option A: import from Google Maps Timeline.</b> Timeline lives on your phone now, so export it from there:</p>
+          <ol>
+            <li>On the phone, go to <kbd>Settings</kbd> → <kbd>Location</kbd> → <kbd>Location services</kbd> → <kbd>Timeline</kbd> → <kbd>Export Timeline data</kbd>. This saves a <b>Timeline.json</b> file.</li>
+            <li>In Adventure Timeline, open the <kbd>Trips</kbd> tab and tap the <b>cloud-download</b> icon.</li>
+            <li>Choose the Timeline.json file, tick the trips you want and import them. A couple of years of data is large, so give it a moment.</li>
+          </ol>
+          <p><b>Option B: start from scratch.</b> On the <kbd>Trips</kbd> tab, tap <kbd>+</kbd> to add a trip with a title, dates, notes and the people you travelled with.</p>
+        </div>
+
+        <div class="step">
+          <h3>Open a trip</h3>
+          <p>Tap any trip. It has five tabs:</p>
+          <ul class="tabs">
+            <li><b>Map</b>: dates, star rating, route map and companions. Tap the full-screen button for a bigger map, and switch on <i>Waypoints</i> to see each stop.</li>
+            <li><b>Legs</b>: each stretch of the journey by walk, bike, motorbike, car, 4WD, bus, train, plane or boat. Rate its difficulty (1 to 5) and how much you enjoyed it.</li>
+            <li><b>Media</b>: your photos, videos and voice notes in one gallery.</li>
+            <li><b>Notes</b>: quick timestamped impressions, tagged with where you were.</li>
+            <li><b>Share</b>: build a picture or PDF of the trip.</li>
+          </ul>
+        </div>
+
+        <div class="step">
+          <h3>Add photos, video and audio</h3>
+          <ul>
+            <li>Use the camera and microphone buttons to capture something new.</li>
+            <li>Choose <b>Add from phone</b>. The picker opens on the trip's dates, and the photos are linked, not copied, so they take no extra space.</li>
+            <li>Try <b>Near route</b> to find photos taken within 1, 2 or 5 km of the trail, and look at the suggestions on the Media tab.</li>
+            <li>The auto-add button pulls in everything your camera shot during the trip's dates.</li>
+          </ul>
+        </div>
+
+        <div class="step">
+          <h3>Explore your travels</h3>
+          <ul>
+            <li>The <b>home screen</b> is a map of all your trips, coloured by star rating. Tap a route to open the trip, and use the chips to filter by transport.</li>
+            <li>The <b>Trips</b> tab lists them. Sort by date or rating, or search by title, place name or near where you are now.</li>
+            <li>The <b>stats</b> icon shows totals, distance by transport and year, and your highlights.</li>
+            <li>Tap the <b>compass</b> icon to ask, "Have I been here before?" It lists earlier notes and photos within about 1 km.</li>
+          </ul>
+        </div>
+
+        <div class="step">
+          <h3>Share a trip</h3>
+          <p>On the <kbd>Share</kbd> tab, pick a title and caption, choose up to 7 photos, decide whether to include companions and notes, then share it as a picture or a PDF through your phone's share sheet. Photos are re-saved for sharing, which strips their embedded location.</p>
+        </div>
+
+        <div class="step">
+          <h3>Back it up</h3>
+          <p>Open <kbd>Settings</kbd> → <kbd>Backup</kbd> and tap <b>Back up diary</b>. It saves every trip, route, note and attached file to one zip. Put it on Drive or your computer. <b>Restore from backup</b> brings it all back on a new phone (it replaces what's in the app). Turn on the <b>Backup reminder</b> and the app will nudge you every 7, 14 or 30 days.</p>
+        </div>
+
+        <div class="step">
+          <h3>Make it yours</h3>
+          <p>In Settings you can pick a light or dark theme, set your <b>Home area</b> so photos taken at home aren't suggested for every trip, link companions to people in your contacts, and free up space by swapping duplicate imported copies for links to the originals.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" style="padding-top:8px">
+    <div class="wrap">
+      <h2>Questions</h2>
+      <details><summary>Do I need an account?</summary><p>No. There is nothing to sign up for and nothing to log in to.</p></details>
+      <details><summary>Where is my data stored?</summary><p>On your phone, in the app's private storage. It is only copied somewhere else when you make a backup or share a trip, and those go where you send them.</p></details>
+      <details><summary>Does it work offline?</summary><p>Yes. It only uses the internet to fetch map tiles from OpenStreetMap and to look up place names with Android's built-in geocoder.</p></details>
+      <details><summary>Does it track my location?</summary><p>No. It never records your location in the background. It only reads your location when you use a feature that needs it, such as tagging a note or centring the map on you.</p></details>
+      <details><summary>Why does it ask for permissions?</summary><p>Only when you use the feature that needs them: camera and microphone to capture media, photos and videos to attach them, location for notes and "near me", and contacts if you want to link companions. You can refuse any of them and still use the rest. The <a href="privacy/">privacy policy</a> explains each one.</p></details>
+      <details><summary>Is it affiliated with Google?</summary><p>No. Adventure Timeline is an independent project. "Google" and "Google Maps Timeline" are trademarks of Google LLC, used only to describe the files the app can import.</p></details>
+      <details><summary>Is it free?</summary><p>Yes, and it is open source under the GNU General Public License v3.0. You can read the code and build it yourself.</p></details>
+      <details><summary>Something is not working. Who do I ask?</summary><p>Email <a href="mailto:support@jonesie.net.nz">support@jonesie.net.nz</a> or <a href="https://github.com/Jonesie/adventure-timeline/issues">open an issue on GitHub</a>. Please say which phone and Android version you have.</p></details>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="privacy/">Privacy policy</a>
+      <a href="https://github.com/Jonesie/adventure-timeline">Source code</a>
+      <a href="https://github.com/Jonesie/adventure-timeline/releases">Releases</a>
+      <a href="https://github.com/Jonesie/adventure-timeline/issues">Report a problem</a>
+      <a href="mailto:support@jonesie.net.nz">support@jonesie.net.nz</a>
+    </div>
+    <div>© 2026 Jonesie. Free software under the <a href="https://github.com/Jonesie/adventure-timeline/blob/main/LICENSE">GNU GPL v3.0</a>. Maps © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>. Adventure Timeline is not affiliated with or endorsed by Google.</div>
+  </div>
+</footer>
+
+</body>
+</html>
