@@ -11,12 +11,16 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
@@ -40,6 +44,7 @@ import net.jonesie.traveldiary.ui.MediaPickerScreen
 import net.jonesie.traveldiary.ui.MediaViewerScreen
 import net.jonesie.traveldiary.ui.NearbyScreen
 import net.jonesie.traveldiary.ui.PickerMode
+import net.jonesie.traveldiary.ui.SplashOverlay
 import net.jonesie.traveldiary.ui.RecordAudioScreen
 import net.jonesie.traveldiary.ui.AppTheme
 import net.jonesie.traveldiary.ui.SettingsScreen
@@ -52,12 +57,19 @@ import net.jonesie.traveldiary.util.MediaFiles
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // The manifest theme is the launch splash background; switch to the normal one before drawing.
+        setTheme(R.style.Theme_TravelDiary)
         super.onCreate(savedInstanceState)
         setContent {
             val viewModel: TravelDiaryViewModel = viewModel()
             val themeMode by viewModel.themeMode.collectAsState()
+            // rememberSaveable: shown on a cold start only, not again after rotation or returning to the app.
+            var showSplash by rememberSaveable { mutableStateOf(true) }
             AppTheme(themeMode) {
-                TravelDiaryApp()
+                Box(Modifier.fillMaxSize()) {
+                    TravelDiaryApp()
+                    SplashOverlay(visible = showSplash, onFinished = { showSplash = false })
+                }
             }
         }
     }

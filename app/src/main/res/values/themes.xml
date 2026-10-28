@@ -1,3 +1,8 @@
 <resources>
     <style name="Theme.TravelDiary" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Shown while the app starts; MainActivity switches to Theme.TravelDiary before drawing anything. -->
+    <style name="Theme.TravelDiary.Starting" parent="Theme.TravelDiary">
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
 </resources>
