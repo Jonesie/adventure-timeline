@@ -1,8 +1,11 @@
-# Travel Diary
+# Adventure Timeline
 
 A personal, offline-first Android app for recording the trips you take: where you went, how you
 got there, who with, plus photos, audio and notes. It is travel-only by design; it does not record
-online activity.
+online activity. It pairs naturally with Google Maps Timeline: import the trips Timeline has
+already found, then add the ratings, photos and notes that make them memorable.
+
+Adventure Timeline is an independent project and is not affiliated with or endorsed by Google.
 
 All data is stored on the device (Room/SQLite). Nothing is synced automatically; use Settings to back up.
 
@@ -135,6 +138,6 @@ Run the tests locally with `./gradlew testDebugUnitTest`.
 
 ## Licence
 
-Travel Diary is free software, released under the [GNU General Public License v3.0](LICENSE) (or later at your option).
+Adventure Timeline is free software, released under the [GNU General Public License v3.0](LICENSE) (or later at your option).
 Copyright © 2026 Jonesie. Maps are © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright).
-The [privacy policy](https://jonesie.github.io/travel-diary/privacy/) explains what the app does with your data.
+The [privacy policy](https://jonesie.github.io/adventure-timeline/privacy/) explains what the app does with your data.

@@ -138,7 +138,7 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
             SectionHeader("About")
             SettingRow(
                 icon = { Icon(Icons.Filled.Info, contentDescription = null) },
-                title = "About Travel Diary",
+                title = "About Adventure Timeline",
                 subtitle = "What it is and why it exists.",
                 onClick = onOpenAbout
             )
@@ -219,7 +219,7 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
             CoffeeButton()
 
             Text(
-                "Travel Diary is free software (GPL-3.0). Source: github.com/Jonesie/travel-diary\n" +
+                "Adventure Timeline is free software (GPL-3.0). Source: github.com/Jonesie/adventure-timeline\n" +
                     "Maps © OpenStreetMap contributors. Place names via your device's geocoder.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -257,7 +257,7 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
             confirmButton = {
                 TextButton(onClick = {
                     showBackupOptions = false
-                    createBackup.launch("travel-diary-backup-" + SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) + ".zip")
+                    createBackup.launch("adventure-timeline-backup-" + SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) + ".zip")
                 }) { Text("Choose where to save") }
             },
             dismissButton = { TextButton(onClick = { showBackupOptions = false }) { Text("Cancel") } }

@@ -26,8 +26,8 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 
-private const val SOURCE_URL = "https://github.com/Jonesie/travel-diary"
-private const val PRIVACY_URL = "https://jonesie.github.io/travel-diary/privacy/"
+private const val SOURCE_URL = "https://github.com/Jonesie/adventure-timeline"
+private const val PRIVACY_URL = "https://jonesie.github.io/adventure-timeline/privacy/"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,7 +53,7 @@ fun AboutScreen(onBack: () -> Unit) {
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)
         ) {
-            Text("Travel Diary", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 8.dp))
+            Text("Adventure Timeline", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 8.dp))
             Text(
                 "A private diary of the places you've been.",
                 style = MaterialTheme.typography.bodyLarge,
@@ -63,8 +63,8 @@ fun AboutScreen(onBack: () -> Unit) {
 
             Heading("What it is")
             Body(
-                "Travel Diary keeps a record of your trips: where you went, how you got there, who was with you, and the photos, " +
-                    "videos, voice notes and impressions you picked up along the way. Pull in the trips Google Timeline has already " +
+                "Adventure Timeline keeps a record of your trips: where you went, how you got there, who was with you, and the photos, " +
+                    "videos, voice notes and impressions you picked up along the way. Pull in the trips Google Maps Timeline has already " +
                     "found, then add the human side to them: a rating, how hard or enjoyable each leg was, a note about the view."
             )
             Body(
@@ -95,7 +95,8 @@ fun AboutScreen(onBack: () -> Unit) {
             Heading("Credits")
             Body(
                 "Maps © OpenStreetMap contributors. Built with Kotlin, Jetpack Compose, Room, osmdroid and Coil. " +
-                    "Thank you to all the free software it stands on."
+                    "Thank you to all the free software it stands on. Adventure Timeline is an independent project and is not " +
+                    "affiliated with or endorsed by Google. “Google” and “Google Maps Timeline” are trademarks of Google LLC."
             )
 
             Heading("Links")

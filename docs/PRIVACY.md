@@ -1,14 +1,14 @@
 ---
 layout: default
-title: Travel Diary — Privacy Policy
+title: Adventure Timeline — Privacy Policy
 permalink: /privacy/
 ---
 
-# Travel Diary — Privacy Policy
+# Adventure Timeline — Privacy Policy
 
 _Last updated: 28 October 2026_
 
-Travel Diary is a personal travel diary for Android. It is built to keep your information **on your own phone**. This policy explains what the app stores, what it asks permission for and why, and the few times it talks to the internet.
+Adventure Timeline is a personal travel diary for Android. It is built to keep your information **on your own phone**. This policy explains what the app stores, what it asks permission for and why, and the few times it talks to the internet.
 
 **In short:** the developer does not collect your data. There are no accounts, no advertising, no analytics and no tracking. Your trips, photos, notes and locations stay on your device unless **you** choose to back them up or share them.
 
@@ -63,7 +63,7 @@ Your data stays until you remove it. You can delete a trip, a photo or a note in
 
 ## Children
 
-Travel Diary is not directed at children and does not knowingly collect information from anyone.
+Adventure Timeline is not directed at children and does not knowingly collect information from anyone.
 
 ## Changes
 
@@ -71,4 +71,4 @@ If this policy changes, the new version will be published at the same address wi
 
 ## Contact
 
-Questions about this policy: please [open an issue](https://github.com/Jonesie/travel-diary/issues) on the project page.
+Questions about this policy: please [open an issue](https://github.com/Jonesie/adventure-timeline/issues) on the project page.

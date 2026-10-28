@@ -214,7 +214,7 @@ object ShareComposer {
                 else bitmaps.chunked(2).forEach { blocks += PhotoRowBlock(it, 2) }
             }
             blocks += SpacerBlock(10f)
-            blocks += TextBlock("Made with Travel Diary", 26f, MUTED, gapBelow = 0f)
+            blocks += TextBlock("Made with Adventure Timeline", 26f, MUTED, gapBelow = 0f)
 
             val dir = File(context.cacheDir, "share").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
             val safeName = t.title.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').take(40).ifEmpty { "trip" }

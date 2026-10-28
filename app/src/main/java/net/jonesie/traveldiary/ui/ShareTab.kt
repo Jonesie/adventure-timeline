@@ -217,7 +217,7 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                         format = format
                     )
                     val result = ShareComposer.compose(context, trip, snapshot, options)
-                    val uri = FileProvider.getUriForFile(context, "net.jonesie.traveldiary.fileprovider", result.file)
+                    val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", result.file)
                     val send = Intent(Intent.ACTION_SEND).apply {
                         type = format.mimeType
                         putExtra(Intent.EXTRA_STREAM, uri)

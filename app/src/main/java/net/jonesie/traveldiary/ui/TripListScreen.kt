@@ -162,7 +162,7 @@ fun TripListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Travel Diary") },
+                title = { Text("Adventure Timeline") },
                 actions = {
                     IconButton(onClick = {
                         searching = !searching

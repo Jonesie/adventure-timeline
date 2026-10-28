@@ -41,7 +41,7 @@ Repository → Settings → Secrets and variables → Actions:
 
 ### 3. Play Console
 
-1. Create the app (package name `net.jonesie.traveldiary`).
+1. Create the app (package name `nz.net.jonesie.adventuretimeline`).
 2. **The very first release must be uploaded by hand** in Play Console (the API can't create a brand-new app). Download the `.aab` from the first GitHub release and upload it to a test track.
 3. For automatic uploads, create a service account (Google Cloud), grant it access in Play Console → Users and permissions, and store its JSON key as `PLAY_SERVICE_ACCOUNT_JSON`. Uploads go to the **internal** track as a **draft**; promote from Play Console. Edit `track` / `status` in `release.yml` when you want to change that.
 

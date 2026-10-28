@@ -225,7 +225,7 @@ fun AllTripsMapScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Travel Diary") },
+                title = { Text("Adventure Timeline") },
                 actions = {
                     IconButton(onClick = onOpenStats) { Icon(Icons.Filled.BarChart, contentDescription = "Trip stats") }
                     IconButton(onClick = onNearby) { Icon(Icons.Filled.ExploreOff, contentDescription = "Have I been here before?") }

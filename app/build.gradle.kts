@@ -17,7 +17,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "net.jonesie.traveldiary"
+        applicationId = "nz.net.jonesie.adventuretimeline"
         minSdk = 26
         targetSdk = 36
         versionCode = appVersionCode

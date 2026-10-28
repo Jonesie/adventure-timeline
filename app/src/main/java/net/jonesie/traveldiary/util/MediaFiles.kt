@@ -15,18 +15,19 @@ import java.util.TimeZone
 
 object MediaFiles {
 
-    private const val AUTHORITY = "net.jonesie.traveldiary.fileprovider"
+    /** Must match the provider declared in the manifest, which is `${applicationId}.fileprovider`. */
+    private fun authority(context: Context) = context.packageName + ".fileprovider"
     private val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
 
     fun mediaDir(context: Context): File =
         File(context.getExternalFilesDir(null), "media").apply { mkdirs() }
 
-    fun uriFor(context: Context, file: File): Uri = FileProvider.getUriForFile(context, AUTHORITY, file)
+    fun uriFor(context: Context, file: File): Uri = FileProvider.getUriForFile(context, authority(context), file)
 
     /** The file behind a diary entry, if the app owns it (i.e. it isn't a camera-roll reference). */
     fun ownedFile(context: Context, uriString: String): File? {
         val uri = Uri.parse(uriString)
-        if (uri.authority != AUTHORITY) return null
+        if (uri.authority != authority(context)) return null
         val relative = uri.path?.removePrefix("/") ?: return null
         if (!relative.startsWith("media/")) return null
         return File(context.getExternalFilesDir(null), relative)
@@ -34,19 +35,19 @@ object MediaFiles {
 
     fun newPhotoUri(context: Context): Uri {
         val file = File(mediaDir(context), "photo_${stamp.format(Date())}.jpg")
-        return FileProvider.getUriForFile(context, AUTHORITY, file)
+        return FileProvider.getUriForFile(context, authority(context), file)
     }
 
     fun newVideoUri(context: Context): Uri {
         val file = File(mediaDir(context), "video_${stamp.format(Date())}.mp4")
-        return FileProvider.getUriForFile(context, AUTHORITY, file)
+        return FileProvider.getUriForFile(context, authority(context), file)
     }
 
     fun newAudioFile(context: Context): File =
         File(mediaDir(context), "audio_${stamp.format(Date())}.m4a")
 
     fun audioUri(context: Context, file: File): Uri =
-        FileProvider.getUriForFile(context, AUTHORITY, file)
+        FileProvider.getUriForFile(context, authority(context), file)
 
     class CopiedFile(val uri: Uri, val mimeType: String?, val takenAt: Long?)
 
@@ -68,7 +69,7 @@ object MediaFiles {
         input.use { stream -> dest.outputStream().use { out -> stream.copyTo(out) } }
 
         return CopiedFile(
-            uri = FileProvider.getUriForFile(context, AUTHORITY, dest),
+            uri = FileProvider.getUriForFile(context, authority(context), dest),
             mimeType = mime,
             takenAt = takenAt(dest, mime)
         )
@@ -102,7 +103,7 @@ object MediaFiles {
     /** Deletes the file behind a diary entry, but only if the app created it (never a camera-roll file). */
     fun deleteIfOwned(context: Context, uriString: String) {
         val uri = Uri.parse(uriString)
-        if (uri.authority != AUTHORITY) return
+        if (uri.authority != authority(context)) return
         val relative = uri.path?.removePrefix("/") ?: return
         if (!relative.startsWith("media/")) return
         File(context.getExternalFilesDir(null), relative).delete()

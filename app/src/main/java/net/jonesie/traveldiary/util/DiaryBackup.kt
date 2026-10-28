@@ -274,7 +274,7 @@ object DiaryBackup {
                         }
                     }
                 }
-                val data = parsed ?: error("This isn't a Travel Diary backup")
+                val data = parsed ?: error("This isn't an Adventure Timeline backup")
 
                 progress("Restoring trips…")
                 var skipped = 0
@@ -405,7 +405,7 @@ object DiaryBackup {
         }
         reader.endObject()
 
-        if (format < 1) error("This isn't a Travel Diary backup")
+        if (format < 1) error("This isn't an Adventure Timeline backup")
         if (format > FORMAT) error("This backup was made by a newer version of the app")
         return Parsed(trips, companions, crossRefs, legs, media, impressions, routes)
     }
