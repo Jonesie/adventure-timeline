@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.WrongLocation
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import net.jonesie.traveldiary.data.IncidentCategory
-import net.jonesie.traveldiary.data.IncidentReason
 
 fun IncidentCategory.label(): String = when (this) {
     IncidentCategory.FELL_OFF -> "Fell off or tipped over"
@@ -79,11 +78,3 @@ fun severityColor(severity: Int): Color? = when (severity) {
     else -> null
 }
 
-fun IncidentReason.label(): String = when (this) {
-    IncidentReason.NOT_MY_FAULT -> "Not my fault"
-    IncidentReason.BEYOND_CAPABILITY -> "Situation beyond my capability"
-    IncidentReason.LACK_OF_FOCUS -> "Lack of focus"
-    IncidentReason.STUPIDITY -> "Stupidity"
-    IncidentReason.RATHER_NOT_SAY -> "Rather not say"
-    IncidentReason.OTHER -> "Other"
-}

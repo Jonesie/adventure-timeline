@@ -80,8 +80,8 @@ name is blurred.*
   and Android's contact IDs are read; nothing leaves the phone.
 - **Notes**: quick timestamped impressions, tagged with your location when available.
 - **Incidents**: log what went wrong the moment it happens (fell off, ran off the road, river or water
-  mishap, got stuck, got lost, breakdown, flat tyre, injury, bad weather and more), with how bad it was, an
-  optional reason (from "not my fault" to "lack of focus"), when, a note, and photos or videos. It works before the trip exists: an incident stands on its own and
+  mishap, got stuck, got lost, breakdown, flat tyre, injury, bad weather and more), with how bad it was, who was involved (you, your companions, or both; companions are added to the trip too), an
+  optional reason (from "not my fault" to "lack of focus"; the list is yours to edit in Settings), when, a note, and photos or videos. It works before the trip exists: an incident stands on its own and
   joins the trip that covers its time once that trip is imported, taking its place from the trip's GPS
   trail if it was logged without a location. Incidents show as pins on the trip map and the all-trips map,
   count in the stats, and turn up in "have I been here before?". The third tab on the main screens lists them all.

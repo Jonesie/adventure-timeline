@@ -11,6 +11,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,7 @@ import kotlinx.coroutines.withContext
 import net.jonesie.traveldiary.data.Companion
 import net.jonesie.traveldiary.data.Impression
 import net.jonesie.traveldiary.data.Incident
+import net.jonesie.traveldiary.data.IncidentPersonCrossRef
 import net.jonesie.traveldiary.data.Leg
 import net.jonesie.traveldiary.data.MediaItem
 import net.jonesie.traveldiary.data.MediaType
@@ -47,6 +49,7 @@ import net.jonesie.traveldiary.util.ReverseGeocoder
 import net.jonesie.traveldiary.util.RouteShape
 import net.jonesie.traveldiary.util.TripStats
 import net.jonesie.traveldiary.util.TripStatsCalculator
+import net.jonesie.traveldiary.util.IncidentReasons
 import net.jonesie.traveldiary.util.TripTimeWindow
 import org.osmdroid.util.GeoPoint
 
@@ -63,6 +66,11 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
     val mediaKindsByTrip: StateFlow<Map<Long, Set<MediaType>>> = dao.observeTripMediaKinds()
         .map { rows -> rows.groupBy({ it.tripId }, { it.type }).mapValues { it.value.toSet() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    /** True when there is nothing in the diary at all, so the getting-started screen can show. Null until the database has answered. */
+    val diaryIsEmpty: StateFlow<Boolean?> = combine(dao.observeTrips(), dao.observeIncidents()) { trips, incidents ->
+        trips.isEmpty() && incidents.isEmpty()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun tripDetail(tripId: Long): Flow<TripDetail?> = dao.observeTripDetail(tripId)
 
@@ -185,21 +193,75 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
     val incidents: StateFlow<List<Incident>> = dao.observeIncidents()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** Ids of the trips that have at least one incident, for the badge on the trip list. */
+    val tripIdsWithIncidents: StateFlow<Set<Long>> = incidents
+        .map { list -> list.mapNotNull { it.tripId }.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     /** Photos and videos linked to incidents, whether or not their incident has a trip yet. */
     val incidentMedia: StateFlow<List<MediaItem>> = dao.observeIncidentMedia()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun addIncident(incident: Incident, onDone: (Long) -> Unit = {}) {
+    /** The choices in the Reason dropdown, editable from Settings. */
+    private val _incidentReasons = MutableStateFlow(IncidentReasons.load(getApplication()))
+    val incidentReasons: StateFlow<List<String>> = _incidentReasons.asStateFlow()
+
+    fun saveIncidentReasons(reasons: List<String>) {
+        IncidentReasons.save(getApplication(), reasons)
+        _incidentReasons.value = IncidentReasons.load(getApplication())
+    }
+
+    /** Renaming a reason in Settings carries the incidents that used it along. */
+    fun renameIncidentReason(old: String, new: String) {
+        viewModelScope.launch { dao.renameIncidentReason(old, new) }
+    }
+
+    /**
+     * Takes a photo or video off its incident. In a trip it stays in the trip's media; one that never
+     * had a trip would be left belonging to nothing, so it is deleted instead.
+     */
+    fun detachIncidentMedia(item: MediaItem) {
+        viewModelScope.launch {
+            if (item.tripId != null) dao.clearMediaIncident(item.id) else deleteMedia(item)
+        }
+    }
+
+    /** Everyone ever named as a companion, for picking who was involved in an incident. */
+    val companions: StateFlow<List<Companion>> = dao.observeCompanions()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** The companions involved in each incident, by incident id. The owner is [Incident.involvesMe]. */
+    val incidentPeople: StateFlow<Map<Long, List<Companion>>> =
+        combine(dao.observeIncidentPeople(), dao.observeCompanions()) { refs, all ->
+            val byId = all.associateBy { it.id }
+            refs.groupBy({ it.incidentId }, { byId[it.companionId] }).mapValues { it.value.filterNotNull().sortedBy { c -> c.name } }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    /** Names of the companions already attached to an incident, for editing it. */
+    suspend fun incidentPeopleNames(incidentId: Long): List<String> = dao.getIncidentPeopleNames(incidentId)
+
+    private suspend fun saveIncidentPeople(incidentId: Long, names: List<String>) {
+        dao.clearIncidentPeople(incidentId)
+        names.map { it.trim() }.filter { it.isNotEmpty() }.distinct().forEach { name ->
+            dao.insertIncidentPerson(IncidentPersonCrossRef(incidentId, companionIdFor(name)))
+        }
+    }
+
+    fun addIncident(incident: Incident, people: List<String> = emptyList(), onDone: (Long) -> Unit = {}) {
         viewModelScope.launch {
             val id = dao.insertIncident(incident)
+            saveIncidentPeople(id, people)
             assignIncidentsToTrips()
             onDone(id)
         }
     }
 
-    fun updateIncident(incident: Incident) {
+    fun updateIncident(incident: Incident, people: List<String>) {
         viewModelScope.launch {
             dao.updateIncident(incident)
+            // Its photos and videos always sit in the same trip as the incident (or in none).
+            dao.setIncidentMediaTrip(incident.id, incident.tripId)
+            saveIncidentPeople(incident.id, people)
             assignIncidentsToTrips()
         }
     }
@@ -224,14 +286,17 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
      */
     suspend fun assignIncidentsToTrips() {
         val waiting = dao.getUnassignedIncidents()
-        if (waiting.isEmpty()) return
-        val trips = dao.getAllTrips()
-        waiting.forEach { incident ->
-            val trip = trips.firstOrNull { incident.timestamp in TripTimeWindow.of(it) } ?: return@forEach
-            val place = if (incident.lat == null) routePositionAt(trip.id, incident.timestamp) else null
-            dao.assignIncident(incident.id, trip.id, place?.first, place?.second)
-            dao.assignIncidentMedia(incident.id, trip.id)
+        if (waiting.isNotEmpty()) {
+            val trips = dao.getAllTrips()
+            waiting.forEach { incident ->
+                val trip = trips.firstOrNull { incident.timestamp in TripTimeWindow.of(it) } ?: return@forEach
+                val place = if (incident.lat == null) routePositionAt(trip.id, incident.timestamp) else null
+                dao.assignIncident(incident.id, trip.id, place?.first, place?.second)
+                dao.assignIncidentMedia(incident.id, trip.id)
+            }
         }
+        // Whoever was involved in a trip's incident was on that trip.
+        dao.addIncidentPeopleToTrips()
     }
 
     /**

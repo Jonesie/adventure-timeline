@@ -28,7 +28,9 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import net.jonesie.traveldiary.ui.GettingStartedScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import net.jonesie.traveldiary.data.MediaType
@@ -93,6 +95,11 @@ private fun TravelDiaryApp() {
         }
     }
 
+    val diaryIsEmpty by viewModel.diaryIsEmpty.collectAsState()
+    val route by navController.currentBackStackEntryAsState()
+    val onMainTab = route?.destination?.route in setOf("allTripsMap", "tripList", "incidents")
+
+    Box(Modifier.fillMaxSize()) {
     NavHost(navController = navController, startDestination = "allTripsMap") {
         composable("allTripsMap") {
             AllTripsMapScreen(
@@ -430,5 +437,16 @@ private fun TravelDiaryApp() {
                 }
             )
         }
+    }
+
+    // A completely empty diary gets a welcome in place of the empty tabs; it goes as soon as anything is added.
+    if (diaryIsEmpty == true && onMainTab) {
+        GettingStartedScreen(
+            onImportTimeline = { navController.navigate("importTimeline") },
+            onAddTrip = { navController.navigate("addTrip") },
+            onLogIncident = { navController.navigate("incident") },
+            onOpenSettings = { navController.navigate("settings") }
+        )
+    }
     }
 }

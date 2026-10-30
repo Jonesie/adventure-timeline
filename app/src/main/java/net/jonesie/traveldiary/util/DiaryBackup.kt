@@ -14,7 +14,7 @@ import net.jonesie.traveldiary.data.Companion
 import net.jonesie.traveldiary.data.Impression
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.IncidentCategory
-import net.jonesie.traveldiary.data.IncidentReason
+import net.jonesie.traveldiary.data.IncidentPersonCrossRef
 import net.jonesie.traveldiary.data.Leg
 import net.jonesie.traveldiary.data.MediaItem
 import net.jonesie.traveldiary.data.MediaType
@@ -167,9 +167,18 @@ object DiaryBackup {
                 writer.beginObject()
                 writer.put("id", i.id); writer.put("tripId", i.tripId); writer.put("legId", i.legId)
                 writer.put("category", i.category.name); writer.put("severity", i.severity.toLong())
-                writer.put("reason", i.reason?.name)
+                writer.put("reason", i.reason)
+                writer.name("involvesMe").value(i.involvesMe)
                 writer.put("notes", i.notes); writer.put("timestamp", i.timestamp)
                 writer.put("lat", i.lat); writer.put("lon", i.lon)
+                writer.endObject()
+            }
+            writer.endArray()
+
+            writer.name("incidentPeople").beginArray()
+            dao.getAllIncidentPeople().forEach { r ->
+                writer.beginObject()
+                writer.put("incidentId", r.incidentId); writer.put("companionId", r.companionId)
                 writer.endObject()
             }
             writer.endArray()
@@ -250,6 +259,7 @@ object DiaryBackup {
         val media: List<ParsedMedia>,
         val impressions: List<Impression>,
         val incidents: List<Incident>,
+        val incidentPeople: List<IncidentPersonCrossRef>,
         val routes: List<RoutePoint>
     )
 
@@ -318,6 +328,7 @@ object DiaryBackup {
                     dao.insertMediaItems(mediaItems)
                     dao.insertImpressions(data.impressions)
                     dao.insertIncidents(data.incidents)
+                    dao.insertIncidentPeople(data.incidentPeople)
                     data.routes.chunked(5000).forEach { dao.insertRoutePoints(it) }
                 }
 
@@ -344,6 +355,7 @@ object DiaryBackup {
         val media = mutableListOf<ParsedMedia>()
         val impressions = mutableListOf<Impression>()
         val incidents = mutableListOf<Incident>()
+        val incidentPeople = mutableListOf<IncidentPersonCrossRef>()
         val routes = mutableListOf<RoutePoint>()
 
         reader.beginObject()
@@ -401,8 +413,13 @@ object DiaryBackup {
                         category = runCatching { IncidentCategory.valueOf(m.string("category")) }.getOrDefault(IncidentCategory.OTHER),
                         severity = m.long("severity").toInt(), notes = m.stringOrNull("notes") ?: "",
                         timestamp = m.long("timestamp"), lat = m.doubleOrNull("lat"), lon = m.doubleOrNull("lon"),
-                        reason = m.stringOrNull("reason")?.let { r -> runCatching { IncidentReason.valueOf(r) }.getOrNull() }
+                        reason = m.stringOrNull("reason")?.let { IncidentReasons.fromLegacyName(it) },
+                        // Backups from before this field existed were all the owner's own.
+                        involvesMe = m["involvesMe"] as? Boolean ?: true
                     )
+                }
+                "incidentPeople" -> readObjects(reader) { m ->
+                    incidentPeople += IncidentPersonCrossRef(m.long("incidentId"), m.long("companionId"))
                 }
                 "routes" -> {
                     reader.beginArray()
@@ -438,7 +455,7 @@ object DiaryBackup {
 
         if (format < 1) error("This isn't an Adventure Timeline backup")
         if (format > FORMAT) error("This backup was made by a newer version of the app")
-        return Parsed(trips, companions, crossRefs, legs, media, impressions, incidents, routes)
+        return Parsed(trips, companions, crossRefs, legs, media, impressions, incidents, incidentPeople, routes)
     }
 
     class Estimate(val appFilesBytes: Long, val cameraRollBytes: Long)

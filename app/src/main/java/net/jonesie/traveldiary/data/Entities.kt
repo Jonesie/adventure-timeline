@@ -14,11 +14,6 @@ enum class MediaType {
     PHOTO, VIDEO, AUDIO
 }
 
-/** Why it happened, in the rider's own estimation. Optional, and only ever for their own eyes. Stored by name. */
-enum class IncidentReason {
-    NOT_MY_FAULT, BEYOND_CAPABILITY, LACK_OF_FOCUS, STUPIDITY, RATHER_NOT_SAY, OTHER
-}
-
 /**
  * What went wrong. Stored by name, so only ever add to the end of the list or rename with care.
  * Labels and icons live in the UI layer ([net.jonesie.traveldiary.ui.label]).
@@ -167,7 +162,25 @@ data class Incident(
     val timestamp: Long,
     val lat: Double? = null,
     val lon: Double? = null,
-    val reason: IncidentReason? = null
+    // Free text chosen from the user's editable list of reasons (see IncidentReasons).
+    val reason: String? = null,
+    // Whether the diary's owner was part of it. Anyone else involved is in [IncidentPersonCrossRef].
+    @ColumnInfo(defaultValue = "1") val involvesMe: Boolean = true
+)
+
+/** A companion who was involved in an incident (the diary's owner is [Incident.involvesMe]). */
+@Entity(
+    tableName = "incident_people",
+    primaryKeys = ["incidentId", "companionId"],
+    foreignKeys = [
+        ForeignKey(entity = Incident::class, parentColumns = ["id"], childColumns = ["incidentId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = Companion::class, parentColumns = ["id"], childColumns = ["companionId"], onDelete = ForeignKey.CASCADE)
+    ],
+    indices = [Index("companionId")]
+)
+data class IncidentPersonCrossRef(
+    val incidentId: Long,
+    val companionId: Long
 )
 
 /**

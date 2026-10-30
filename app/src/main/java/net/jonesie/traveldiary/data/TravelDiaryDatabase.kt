@@ -16,10 +16,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MediaItem::class,
         Impression::class,
         Incident::class,
+        IncidentPersonCrossRef::class,
         RoutePoint::class,
         GalleryIndexItem::class
     ],
-    version = 9,
+    version = 11,
     exportSchema = false
 )
 abstract class TravelDiaryDatabase : RoomDatabase() {
@@ -104,13 +105,42 @@ abstract class TravelDiaryDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Incidents logged before this existed were the owner's own.
+                db.execSQL("ALTER TABLE incidents ADD COLUMN involvesMe INTEGER NOT NULL DEFAULT 1")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS incident_people (incidentId INTEGER NOT NULL, companionId INTEGER NOT NULL, " +
+                        "PRIMARY KEY(incidentId, companionId), " +
+                        "FOREIGN KEY(incidentId) REFERENCES incidents(id) ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                        "FOREIGN KEY(companionId) REFERENCES companions(id) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_incident_people_companionId ON incident_people (companionId)")
+            }
+        }
+
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Reasons used to be a fixed list stored by name; they are now editable text.
+                db.execSQL(
+                    "UPDATE incidents SET reason = CASE reason " +
+                        "WHEN 'NOT_MY_FAULT' THEN 'Not my fault' " +
+                        "WHEN 'BEYOND_CAPABILITY' THEN 'Situation beyond my capability' " +
+                        "WHEN 'LACK_OF_FOCUS' THEN 'Lack of focus' " +
+                        "WHEN 'STUPIDITY' THEN 'Stupidity' " +
+                        "WHEN 'RATHER_NOT_SAY' THEN 'Rather not say' " +
+                        "WHEN 'OTHER' THEN 'Other' ELSE reason END WHERE reason IS NOT NULL"
+                )
+            }
+        }
+
         fun get(context: Context): TravelDiaryDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     TravelDiaryDatabase::class.java,
                     "travel-diary.db"
-                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).fallbackToDestructiveMigration().build().also { instance = it }
+                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).fallbackToDestructiveMigration().build().also { instance = it }
             }
     }
 }

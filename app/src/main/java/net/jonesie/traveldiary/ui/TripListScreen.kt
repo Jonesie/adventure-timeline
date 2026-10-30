@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.ExploreOff
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -82,6 +83,7 @@ fun TripListScreen(
 ) {
     val trips by viewModel.trips.collectAsState()
     val mediaKinds by viewModel.mediaKindsByTrip.collectAsState()
+    val tripsWithIncidents by viewModel.tripIdsWithIncidents.collectAsState()
     val backupSettings by viewModel.backupSettings.collectAsState()
 
     val context = LocalContext.current
@@ -233,7 +235,7 @@ fun TripListScreen(
                 visibleTrips.isEmpty() -> Text("No trips match your search.", modifier = Modifier.padding(16.dp))
                 else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(visibleTrips, key = { it.id }) { trip ->
-                        TripRow(trip, kinds = mediaKinds[trip.id].orEmpty(), onClick = { onOpenTrip(trip.id) })
+                        TripRow(trip, kinds = mediaKinds[trip.id].orEmpty(), hasIncidents = trip.id in tripsWithIncidents, onClick = { onOpenTrip(trip.id) })
                     }
                 }
             }
@@ -283,7 +285,7 @@ private fun BackupReminderCard(lastBackup: Long?, onBackUp: () -> Unit, onLater:
 }
 
 @Composable
-private fun TripRow(trip: Trip, kinds: Set<MediaType>, onClick: () -> Unit) {
+private fun TripRow(trip: Trip, kinds: Set<MediaType>, hasIncidents: Boolean, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -303,6 +305,9 @@ private fun TripRow(trip: Trip, kinds: Set<MediaType>, onClick: () -> Unit) {
                 }
                 if (MediaType.AUDIO in kinds) {
                     Icon(Icons.Filled.Mic, contentDescription = "Has voice notes", modifier = Modifier.padding(start = 8.dp).size(18.dp))
+                }
+                if (hasIncidents) {
+                    Icon(Icons.Filled.ReportProblem, contentDescription = "Has incidents", modifier = Modifier.padding(start = 8.dp).size(18.dp))
                 }
             }
             if (trip.rating > 0) Text(starString(trip.rating), style = MaterialTheme.typography.titleMedium)

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
@@ -96,6 +97,7 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
     }
     var confirmRestore by remember { mutableStateOf(false) }
     var confirmDeleteAll by remember { mutableStateOf(false) }
+    var showReasons by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<String?>(null) }
     var copyMatches by remember { mutableStateOf<List<DuplicateCopies.Match>?>(null) }
     val scope = rememberCoroutineScope()
@@ -197,6 +199,14 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
                 onClick = { linkCompanions() }
             )
 
+            SectionHeader("Incidents")
+            SettingRow(
+                icon = { Icon(Icons.Filled.ReportProblem, contentDescription = null) },
+                title = "Incident reasons",
+                subtitle = "Change the choices offered in an incident's Reason dropdown.",
+                onClick = { showReasons = true }
+            )
+
             SectionHeader("Data")
             SettingRow(
                 icon = { Icon(Icons.Filled.CleaningServices, contentDescription = null) },
@@ -227,6 +237,8 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
             )
         }
     }
+
+    if (showReasons) IncidentReasonsDialog(viewModel, onDismiss = { showReasons = false })
 
     if (showBackupOptions) {
         AlertDialog(

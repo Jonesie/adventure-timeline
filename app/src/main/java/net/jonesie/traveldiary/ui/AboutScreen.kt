@@ -26,7 +26,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 
-private const val WEBSITE_URL = "https://jonesie.github.io/adventure-timeline/"
+internal const val WEBSITE_URL = "https://jonesie.github.io/adventure-timeline/"
 private const val SOURCE_URL = "https://github.com/Jonesie/adventure-timeline"
 private const val PRIVACY_URL = "https://jonesie.github.io/adventure-timeline/privacy/"
 

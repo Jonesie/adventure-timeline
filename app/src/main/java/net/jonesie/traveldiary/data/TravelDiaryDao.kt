@@ -169,12 +169,40 @@ interface TravelDiaryDao {
     @Query("UPDATE media_items SET tripId = :tripId WHERE incidentId = :incidentId AND tripId IS NULL")
     suspend fun assignIncidentMedia(incidentId: Long, tripId: Long)
 
+    @Query("UPDATE media_items SET legId = CASE WHEN tripId IS :tripId THEN legId ELSE NULL END, tripId = :tripId WHERE incidentId = :incidentId")
+    suspend fun setIncidentMediaTrip(incidentId: Long, tripId: Long?)
+
     /** A trip's incident photos must not vanish with the trip: they go back to being trip-less. */
     @Query("UPDATE media_items SET tripId = NULL WHERE incidentId IS NOT NULL AND tripId = :tripId")
     suspend fun detachIncidentMediaFromTrip(tripId: Long)
 
     @Query("DELETE FROM incidents")
     suspend fun deleteAllIncidents()
+
+    @Query("UPDATE incidents SET reason = :to WHERE reason = :from")
+    suspend fun renameIncidentReason(from: String, to: String)
+
+    @Query("UPDATE media_items SET incidentId = NULL WHERE id = :id")
+    suspend fun clearMediaIncident(id: Long)
+
+    @Insert(onConflict = androidx.room.OnConflictStrategy.IGNORE)
+    suspend fun insertIncidentPerson(ref: IncidentPersonCrossRef)
+
+    @Query("DELETE FROM incident_people WHERE incidentId = :incidentId")
+    suspend fun clearIncidentPeople(incidentId: Long)
+
+    /** Adds every companion involved in a trip's incidents to that trip's companions. Never removes anyone. */
+    @Query(
+        "INSERT OR IGNORE INTO trip_companions (tripId, companionId) " +
+            "SELECT DISTINCT i.tripId, p.companionId FROM incidents i JOIN incident_people p ON p.incidentId = i.id WHERE i.tripId IS NOT NULL"
+    )
+    suspend fun addIncidentPeopleToTrips()
+
+    @Query("SELECT c.name FROM companions c JOIN incident_people p ON p.companionId = c.id WHERE p.incidentId = :incidentId ORDER BY c.name")
+    suspend fun getIncidentPeopleNames(incidentId: Long): List<String>
+
+    @Query("SELECT * FROM incident_people")
+    fun observeIncidentPeople(): Flow<List<IncidentPersonCrossRef>>
 
     @Query("DELETE FROM media_items WHERE tripId IS NULL")
     suspend fun deleteTripLessMedia()
@@ -188,6 +216,7 @@ interface TravelDiaryDao {
     @Query("SELECT * FROM media_items") suspend fun getAllMedia(): List<MediaItem>
     @Query("SELECT * FROM impressions") suspend fun getAllImpressions(): List<Impression>
     @Query("SELECT * FROM incidents") suspend fun getAllIncidents(): List<Incident>
+    @Query("SELECT * FROM incident_people") suspend fun getAllIncidentPeople(): List<IncidentPersonCrossRef>
 
     @Insert suspend fun insertTrips(items: List<Trip>)
     @Insert suspend fun insertCompanions(items: List<Companion>)
@@ -195,6 +224,7 @@ interface TravelDiaryDao {
     @Insert suspend fun insertLegs(items: List<Leg>)
     @Insert suspend fun insertImpressions(items: List<Impression>)
     @Insert suspend fun insertIncidents(items: List<Incident>)
+    @Insert suspend fun insertIncidentPeople(items: List<IncidentPersonCrossRef>)
 
     @Query("DELETE FROM companions") suspend fun deleteAllCompanions()
 

@@ -41,6 +41,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -54,8 +55,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.IncidentCategory
-import net.jonesie.traveldiary.data.IncidentReason
 import net.jonesie.traveldiary.util.LocationHelper
+import net.jonesie.traveldiary.util.TripTimeWindow
 import java.text.DateFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -83,10 +84,18 @@ fun AddIncidentScreen(
     var existing by remember { mutableStateOf<Incident?>(null) }
     var category by remember { mutableStateOf<IncidentCategory?>(null) }
     var severity by remember { mutableStateOf(0) }
-    var reason by remember { mutableStateOf<IncidentReason?>(null) }
+    var reason by remember { mutableStateOf<String?>(null) }
+    // Who it happened to: the diary's owner, and/or any companions by name. A new incident starts as "Me".
+    var involvesMe by remember { mutableStateOf(true) }
+    var people by remember { mutableStateOf(setOf<String>()) }
+    var newPerson by remember { mutableStateOf("") }
+    val knownCompanions by viewModel.companions.collectAsState()
+    val reasonChoices by viewModel.incidentReasons.collectAsState()
     var notes by remember { mutableStateOf("") }
     var timestamp by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var tagLocation by remember { mutableStateOf(incidentId == null) }
+    var selectedTripId by remember { mutableStateOf(tripId) }
+    val trips by viewModel.trips.collectAsState()
     var showDate by remember { mutableStateOf(false) }
     var showTime by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -99,11 +108,18 @@ fun AddIncidentScreen(
                 category = it.category
                 severity = it.severity
                 reason = it.reason
+                involvesMe = it.involvesMe
+                people = viewModel.incidentPeopleNames(it.id).toSet()
                 notes = it.notes
                 timestamp = it.timestamp
+                selectedTripId = it.tripId
             }
         }
     }
+
+    // A picked trip only takes incidents from its own dates.
+    val tripWindow = trips.firstOrNull { it.id == selectedTripId }?.let { TripTimeWindow.of(it) }
+    val outsideTrip = tripWindow != null && timestamp !in tripWindow
 
     // Tagging "where I am now" only makes sense for something that just happened.
     val recent = System.currentTimeMillis() - timestamp < 3 * 60 * 60_000L
@@ -118,14 +134,18 @@ fun AddIncidentScreen(
             var lon = existing?.lon
             if (recent && tagLocation && LocationHelper.hasPermission(context)) {
                 LocationHelper.lastKnownLocation(context)?.let { lat = it.latitude; lon = it.longitude }
-            } else if (lat == null && tripId != null) {
-                viewModel.routePositionAt(tripId, timestamp)?.let { lat = it.first; lon = it.second }
+            } else if (lat == null && selectedTripId != null) {
+                viewModel.routePositionAt(selectedTripId!!, timestamp)?.let { lat = it.first; lon = it.second }
             }
-            val saved = (existing ?: Incident(tripId = tripId, category = chosen, timestamp = timestamp)).copy(
+            val saved = (existing ?: Incident(category = chosen, timestamp = timestamp)).copy(
+                tripId = selectedTripId,
+                // A leg belongs to its trip, so moving the incident to another trip drops it.
+                legId = if (selectedTripId == existing?.tripId) existing?.legId else null,
                 category = chosen, severity = severity, notes = notes.trim(), timestamp = timestamp, lat = lat, lon = lon,
-                reason = reason
+                reason = reason, involvesMe = involvesMe
             )
-            if (existing == null) viewModel.addIncident(saved) else viewModel.updateIncident(saved)
+            val named = (people + newPerson.trim()).filter { it.isNotEmpty() }
+            if (existing == null) viewModel.addIncident(saved, named) else viewModel.updateIncident(saved, named)
             Toast.makeText(context, "Incident saved", Toast.LENGTH_SHORT).show()
             onBack()
         }
@@ -152,7 +172,57 @@ fun AddIncidentScreen(
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp).verticalScroll(rememberScrollState())
         ) {
-            Text("What happened?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+            Text("When?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { showDate = true }, modifier = Modifier.weight(1f)) {
+                    Text(DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(timestamp)))
+                }
+                OutlinedButton(onClick = { showTime = true }, modifier = Modifier.weight(1f)) {
+                    Text(DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(timestamp)))
+                }
+            }
+
+
+            if (outsideTrip && tripWindow != null) {
+                val fmt = DateFormat.getDateInstance(DateFormat.MEDIUM)
+                Text(
+                    "That's outside the trip's dates (${fmt.format(Date(tripWindow.first))} to ${fmt.format(Date(tripWindow.last))}). " +
+                        "Change the date, or pick a different trip.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+            }
+
+            Text("Trip (optional)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
+            var tripMenu by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(expanded = tripMenu, onExpandedChange = { tripMenu = it }) {
+                OutlinedTextField(
+                    value = trips.firstOrNull { it.id == selectedTripId }?.title ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    placeholder = { Text("Leave blank to match by date") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = tripMenu) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth()
+                )
+                ExposedDropdownMenu(expanded = tripMenu, onDismissRequest = { tripMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Leave blank", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        onClick = { selectedTripId = null; tripMenu = false }
+                    )
+                    trips.forEach { option ->
+                        DropdownMenuItem(text = { Text(option.title) }, onClick = { selectedTripId = option.id; tripMenu = false })
+                    }
+                }
+            }
+            Text(
+                "Blank, it joins whichever trip covers that date once the trip is imported.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            Text("What happened?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
             var typeMenu by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(expanded = typeMenu, onExpandedChange = { typeMenu = it }) {
                 OutlinedTextField(
@@ -187,11 +257,37 @@ fun AddIncidentScreen(
                 }
             }
 
+            Text("Who was involved?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = involvesMe, onClick = { involvesMe = !involvesMe }, label = { Text("Me") })
+                // Everyone already in the diary, plus anyone typed in below that isn't yet.
+                (knownCompanions.map { it.name } + people).distinct().sorted().forEach { name ->
+                    FilterChip(
+                        selected = name in people,
+                        onClick = { people = if (name in people) people - name else people + name },
+                        label = { Text(name) }
+                    )
+                }
+            }
+            OutlinedTextField(
+                value = newPerson,
+                onValueChange = { newPerson = it },
+                label = { Text("Someone else") },
+                singleLine = true,
+                trailingIcon = {
+                    TextButton(
+                        enabled = newPerson.isNotBlank(),
+                        onClick = { people = people + newPerson.trim(); newPerson = "" }
+                    ) { Text("Add") }
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            )
+
             Text("Reason (optional)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
             var reasonMenu by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(expanded = reasonMenu, onExpandedChange = { reasonMenu = it }) {
                 OutlinedTextField(
-                    value = reason?.label() ?: "",
+                    value = reason ?: "",
                     onValueChange = {},
                     readOnly = true,
                     placeholder = { Text("Leave blank, or say why") },
@@ -203,19 +299,10 @@ fun AddIncidentScreen(
                         text = { Text("Leave blank", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                         onClick = { reason = null; reasonMenu = false }
                     )
-                    IncidentReason.entries.forEach { option ->
-                        DropdownMenuItem(text = { Text(option.label()) }, onClick = { reason = option; reasonMenu = false })
+                    // A reason that has since been removed from the list still shows on the incident that used it.
+                    (reasonChoices + listOfNotNull(reason)).distinct().forEach { option ->
+                        DropdownMenuItem(text = { Text(option) }, onClick = { reason = option; reasonMenu = false })
                     }
-                }
-            }
-
-            Text("When?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { showDate = true }, modifier = Modifier.weight(1f)) {
-                    Text(DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(timestamp)))
-                }
-                OutlinedButton(onClick = { showTime = true }, modifier = Modifier.weight(1f)) {
-                    Text(DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(timestamp)))
                 }
             }
 
@@ -252,7 +339,7 @@ fun AddIncidentScreen(
             )
 
             Button(
-                enabled = category != null && !saving,
+                enabled = category != null && !saving && !outsideTrip,
                 onClick = {
                     // Ask for location once, then save either way: a missing fix never blocks the log.
                     if (recent && tagLocation && !LocationHelper.hasPermission(context)) {

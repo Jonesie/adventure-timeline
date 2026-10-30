@@ -138,6 +138,7 @@ fun IncidentCard(
     incident: Incident,
     tripTitle: String?,
     leg: Leg?,
+    who: String,
     media: List<MediaItem>,
     imageLoader: ImageLoader,
     actions: IncidentMediaActions,
@@ -192,8 +193,11 @@ fun IncidentCard(
                 )
             }
 
+            if (who.isNotEmpty()) {
+                Text("Who: $who", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+            }
             incident.reason?.let {
-                Text("Reason: ${it.label()}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+                Text("Reason: $it", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
             }
             if (incident.notes.isNotBlank()) {
                 Text(incident.notes, modifier = Modifier.padding(top = 8.dp))
@@ -242,6 +246,7 @@ fun IncidentsScreen(
     val incidents by viewModel.incidents.collectAsState()
     val allMedia by viewModel.incidentMedia.collectAsState()
     val trips by viewModel.trips.collectAsState()
+    val people by viewModel.incidentPeople.collectAsState()
     val imageLoader = rememberMediaImageLoader()
     val actions = rememberIncidentMediaActions(viewModel)
     LaunchedEffect(Unit) { viewModel.assignIncidentsToTrips() }
@@ -274,6 +279,7 @@ fun IncidentsScreen(
                         incident = incident,
                         tripTitle = trips.firstOrNull { it.id == incident.tripId }?.title,
                         leg = null,
+                        who = whoLabel(incident, people[incident.id].orEmpty()),
                         media = media,
                         imageLoader = imageLoader,
                         actions = actions,
@@ -285,6 +291,10 @@ fun IncidentsScreen(
         }
     }
 }
+
+/** "Me", "Me, Sam" or "Sam, Alex": who an incident involved. Empty when nobody was recorded. */
+fun whoLabel(incident: Incident, others: List<net.jonesie.traveldiary.data.Companion>): String =
+    (listOfNotNull("Me".takeIf { incident.involvesMe }) + others.map { it.name }).joinToString(", ")
 
 /** A trip's own incidents (the ones that happened during it). */
 @Composable
@@ -298,6 +308,7 @@ fun IncidentsTab(
     val imageLoader = rememberMediaImageLoader()
     val actions = rememberIncidentMediaActions(viewModel)
     val incidents = remember(trip.incidents) { trip.incidents.sortedBy { it.timestamp } }
+    val people by viewModel.incidentPeople.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
         OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
@@ -318,6 +329,7 @@ fun IncidentsTab(
                         incident = incident,
                         tripTitle = null,
                         leg = legAt(trip.legs, incident.timestamp),
+                        who = whoLabel(incident, people[incident.id].orEmpty()),
                         media = media,
                         imageLoader = imageLoader,
                         actions = actions,

@@ -44,6 +44,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
@@ -104,15 +105,26 @@ fun MediaViewerScreen(tripId: Long, startIndex: Int, viewModel: TravelDiaryViewM
 fun IncidentMediaViewerScreen(incidentId: Long, startIndex: Int, viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
     val all by viewModel.incidentMedia.collectAsState()
     val items = remember(all, incidentId) { all.filter { it.incidentId == incidentId }.sortedBy { it.timestamp } }
-    MediaViewer(items = items, startIndex = startIndex, onDelete = { viewModel.deleteMedia(it) }, onBack = onBack)
+    MediaViewer(
+        items = items, startIndex = startIndex, onDelete = { viewModel.deleteMedia(it) }, onBack = onBack,
+        onDetach = { viewModel.detachIncidentMedia(it) }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun MediaViewer(items: List<MediaItem>, startIndex: Int, onDelete: (MediaItem) -> Unit, onBack: () -> Unit) {
+internal fun MediaViewer(
+    items: List<MediaItem>,
+    startIndex: Int,
+    onDelete: (MediaItem) -> Unit,
+    onBack: () -> Unit,
+    // Set when the items belong to an incident: offers to take one off it without deleting it from the trip.
+    onDetach: ((MediaItem) -> Unit)? = null
+) {
     val latestItems by rememberUpdatedState(items)
     val pagerState = rememberPagerState(initialPage = startIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))) { latestItems.size }
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmDetach by remember { mutableStateOf(false) }
 
     LaunchedEffect(items.isEmpty()) { if (items.isEmpty()) onBack() }
     if (items.isEmpty()) return
@@ -149,6 +161,11 @@ internal fun MediaViewer(items: List<MediaItem>, startIndex: Int, onDelete: (Med
                     IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
+                    if (onDetach != null) {
+                        IconButton(onClick = { confirmDetach = true }) {
+                            Icon(Icons.Filled.LinkOff, contentDescription = "Detach from incident")
+                        }
+                    }
                     IconButton(onClick = { confirmDelete = true }) {
                         Icon(Icons.Filled.Delete, contentDescription = "Remove from trip")
                     }
@@ -190,6 +207,26 @@ internal fun MediaViewer(items: List<MediaItem>, startIndex: Int, onDelete: (Med
                 }
             }
         }
+    }
+
+    if (confirmDetach && onDetach != null) {
+        AlertDialog(
+            onDismissRequest = { confirmDetach = false },
+            title = { Text("Detach from this incident?") },
+            text = {
+                Text(
+                    if (current.tripId != null) "It stays in the trip's media, but is no longer shown with this incident."
+                    else "This incident isn't in a trip yet, so the photo or video would belong to nothing. It is removed from the diary instead."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDetach(current)
+                    confirmDetach = false
+                }) { Text(if (current.tripId != null) "Detach" else "Remove") }
+            },
+            dismissButton = { TextButton(onClick = { confirmDetach = false }) { Text("Cancel") } }
+        )
     }
 
     if (confirmDelete) {
