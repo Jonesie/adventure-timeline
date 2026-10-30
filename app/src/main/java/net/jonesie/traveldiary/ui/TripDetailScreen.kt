@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Terrain
@@ -102,6 +103,9 @@ fun TripDetailScreen(
     onRecordAudio: () -> Unit,
     onImportAudio: () -> Unit,
     onAddImpression: () -> Unit,
+    onAddIncident: () -> Unit,
+    onEditIncident: (Long) -> Unit,
+    onOpenIncidentMedia: (incidentId: Long, index: Int) -> Unit,
     onEdit: () -> Unit,
     onOpenMap: () -> Unit
 ) {
@@ -159,6 +163,11 @@ fun TripDetailScreen(
                         onClick = { overflowExpanded = false; onImportAudio() }
                     )
                     DropdownMenuItem(
+                        text = { Text("Log an incident…") },
+                        leadingIcon = { Icon(Icons.Filled.ReportProblem, contentDescription = null) },
+                        onClick = { overflowExpanded = false; onAddIncident() }
+                    )
+                    DropdownMenuItem(
                         text = { Text("Edit trip") },
                         leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                         onClick = { overflowExpanded = false; onEdit() }
@@ -181,7 +190,7 @@ fun TripDetailScreen(
             AlertDialog(
                 onDismissRequest = { confirmDelete = false },
                 title = { Text("Delete this trip?") },
-                text = { Text("This removes its legs, media, and impressions. This can't be undone.") },
+                text = { Text("This removes its legs, media and impressions. Incidents you logged stay, without a trip. This can't be undone.") },
                 confirmButton = {
                     TextButton(onClick = {
                         viewModel.deleteTrip(tripId)
@@ -218,7 +227,7 @@ fun TripDetailScreen(
             )
         }
 
-        val tabs = listOf("Map", "Legs", "Media", "Notes", "Share")
+        val tabs = listOf("Map", "Legs", "Media", "Notes", "Incidents", "Share")
 
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             Text(
@@ -228,7 +237,18 @@ fun TripDetailScreen(
             )
             TabRow(selectedTabIndex = selectedTab) {
                 tabs.forEachIndexed { index, label ->
-                    Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(label) })
+                    // Six tabs share the width, so the label gets no extra padding and a slightly smaller size.
+                    Tab(selected = selectedTab == index, onClick = { selectedTab = index }) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                label,
+                                maxLines = 1,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontSize = androidx.compose.ui.unit.TextUnit(13f, androidx.compose.ui.unit.TextUnitType.Sp),
+                                color = if (selectedTab == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
             // The map lives in a plain Column (never inside a scrolling list) so the native
@@ -239,6 +259,7 @@ fun TripDetailScreen(
                     1 -> LegsTab(legGroups, onEditGroup = { editingGroup = it })
                     2 -> MediaTab(trip, importProgress, onPickMedia, onAutoAddMedia, onOpenMedia, nearbyCount, onReviewNearby)
                     3 -> NotesTab(trip)
+                    4 -> IncidentsTab(trip, viewModel, onAdd = onAddIncident, onEdit = onEditIncident, onOpenMedia = onOpenIncidentMedia)
                     else -> ShareTab(tripId, viewModel, trip)
                 }
             }
@@ -284,7 +305,7 @@ private fun ColumnScope.OverviewTab(
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             RouteMap(
                 tripId, viewModel, trip.legs, modifier = Modifier.fillMaxSize(),
-                media = trip.sortedMedia(), onOpenMedia = onOpenMedia
+                media = trip.sortedMedia(), incidents = trip.incidents, onOpenMedia = onOpenMedia
             )
             Surface(
                 shape = CircleShape,

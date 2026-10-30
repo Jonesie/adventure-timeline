@@ -141,7 +141,7 @@ fun MediaTab(
 }
 
 @Composable
-private fun MediaTile(item: MediaItem, imageLoader: ImageLoader, onClick: () -> Unit) {
+internal fun MediaTile(item: MediaItem, imageLoader: ImageLoader, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .aspectRatio(1f)

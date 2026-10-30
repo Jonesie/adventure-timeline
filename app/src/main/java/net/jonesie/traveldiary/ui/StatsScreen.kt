@@ -80,6 +80,7 @@ fun StatsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onOpenTrip:
             Summary(s)
             if (s.byTransport.isNotEmpty()) TransportSection(s)
             if (s.byYear.isNotEmpty()) YearSection(s)
+            if (s.byIncident.isNotEmpty()) IncidentSection(s)
             RatingSection(s)
             Highlights(s, onOpenTrip)
             Text(
@@ -103,6 +104,7 @@ private fun Summary(s: TripStats) {
         Tile("Videos", "${s.videos}")
         Tile("Voice notes", "${s.voiceNotes}")
         Tile("Notes", "${s.notes}")
+        Tile("Incidents", "${s.incidents}")
     }
 }
 
@@ -161,6 +163,35 @@ private fun TransportSection(s: TripStats) {
                     modifier = Modifier.padding(start = 96.dp, bottom = 2.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun IncidentSection(s: TripStats) {
+    Column {
+        SectionTitle("Incidents")
+        val max = s.byIncident.maxOf { it.count }.coerceAtLeast(1)
+        s.byIncident.forEach { stat ->
+            BarRow(
+                label = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(stat.category.icon(), contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text(stat.category.label(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 6.dp))
+                    }
+                },
+                fraction = stat.count.toFloat() / max,
+                color = MaterialTheme.colorScheme.error,
+                value = "${stat.count}"
+            )
+        }
+        if (s.seriousIncidents > 0) {
+            Text(
+                "${s.seriousIncidents} serious",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
     }
 }

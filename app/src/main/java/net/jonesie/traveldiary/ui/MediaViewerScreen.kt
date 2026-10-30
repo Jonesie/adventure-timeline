@@ -99,9 +99,17 @@ fun MediaViewerScreen(tripId: Long, startIndex: Int, viewModel: TravelDiaryViewM
     )
 }
 
+/** Photos and videos documenting one incident, whether or not it has a trip yet. */
+@Composable
+fun IncidentMediaViewerScreen(incidentId: Long, startIndex: Int, viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
+    val all by viewModel.incidentMedia.collectAsState()
+    val items = remember(all, incidentId) { all.filter { it.incidentId == incidentId }.sortedBy { it.timestamp } }
+    MediaViewer(items = items, startIndex = startIndex, onDelete = { viewModel.deleteMedia(it) }, onBack = onBack)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MediaViewer(items: List<MediaItem>, startIndex: Int, onDelete: (MediaItem) -> Unit, onBack: () -> Unit) {
+internal fun MediaViewer(items: List<MediaItem>, startIndex: Int, onDelete: (MediaItem) -> Unit, onBack: () -> Unit) {
     val latestItems by rememberUpdatedState(items)
     val pagerState = rememberPagerState(initialPage = startIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))) { latestItems.size }
     var confirmDelete by remember { mutableStateOf(false) }

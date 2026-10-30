@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.runtime.rememberUpdatedState
 import net.jonesie.traveldiary.data.MediaItem
 import androidx.compose.material3.FilterChip
@@ -39,6 +40,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.doOnLayout
+import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.Leg
 import net.jonesie.traveldiary.data.RoutePoint
 import net.jonesie.traveldiary.data.TransportType
@@ -145,6 +147,7 @@ private class RouteMapState {
     var fittedTo: List<GeoPoint>? = null
     var drawnLocation: GeoPoint? = null
     var drawnPins: List<PhotoPin>? = null
+    var drawnIncidents: List<Incident>? = null
 }
 
 private fun drawOverlays(
@@ -155,7 +158,8 @@ private fun drawOverlays(
     myLocation: GeoPoint?,
     pins: List<PhotoPin>,
     onOpenPin: (PhotoPin) -> Unit,
-    dark: Boolean
+    dark: Boolean,
+    incidents: List<Incident> = emptyList()
 ) {
     val density = mapView.resources.displayMetrics.density
     mapView.overlays.clear()
@@ -205,6 +209,7 @@ private fun drawOverlays(
         mapView.overlays.add(Marker(mapView).apply { position = end; title = "End" })
     }
     addPhotoPins(mapView, pins, onOpenPin)
+    addIncidentMarkers(mapView, incidents)
     addOsmCredit(mapView, dark)
     myLocation?.let { addMyLocationMarker(mapView, it) }
     mapView.invalidate()
@@ -228,6 +233,7 @@ fun RouteMap(
     legs: List<Leg>,
     modifier: Modifier = Modifier.fillMaxWidth().height(220.dp),
     media: List<MediaItem> = emptyList(),
+    incidents: List<Incident> = emptyList(),
     onOpenMedia: ((Int) -> Unit)? = null,
     onMapView: ((MapView) -> Unit)? = null,
     onMapExport: ((MapExport) -> Unit)? = null
@@ -249,6 +255,9 @@ fun RouteMap(
     val allPins = remember(media) { photoPinsFor(tripId, media) }
     var showPhotos by rememberSaveable { mutableStateOf(true) }
     val shownPins = if (showPhotos) allPins else emptyList()
+    val incidentPins = remember(incidents) { incidents.filter { it.lat != null && it.lon != null } }
+    var showIncidents by rememberSaveable { mutableStateOf(true) }
+    val shownIncidents = if (showIncidents) incidentPins else emptyList()
     val latestOpen by rememberUpdatedState(onOpenMedia)
 
     val state = remember { RouteMapState() }
@@ -276,9 +285,10 @@ fun RouteMap(
                 }
             },
             update = { mapView ->
-                if (state.drawn != segments || state.drawnWaypoints != shownWaypoints || state.drawnLocation != myLocation || state.drawnPins != shownPins) {
-                    drawOverlays(mapView, segments, allPoints, shownWaypoints, myLocation, shownPins, { pin -> latestOpen?.invoke(pin.index) }, dark)
+                if (state.drawn != segments || state.drawnWaypoints != shownWaypoints || state.drawnLocation != myLocation || state.drawnPins != shownPins || state.drawnIncidents != shownIncidents) {
+                    drawOverlays(mapView, segments, allPoints, shownWaypoints, myLocation, shownPins, { pin -> latestOpen?.invoke(pin.index) }, dark, shownIncidents)
                     state.drawnPins = shownPins
+                    state.drawnIncidents = shownIncidents
                     onMapExport?.invoke(
                         MapExport(
                             lines = segments.filter { it.points.size > 1 }.map { seg ->
@@ -318,6 +328,15 @@ fun RouteMap(
                     onClick = { showPhotos = !showPhotos },
                     label = { Text("Photos") },
                     leadingIcon = { Icon(Icons.Filled.Image, contentDescription = null) },
+                    colors = chipColors
+                )
+            }
+            if (incidentPins.isNotEmpty()) {
+                FilterChip(
+                    selected = showIncidents,
+                    onClick = { showIncidents = !showIncidents },
+                    label = { Text("Incidents") },
+                    leadingIcon = { Icon(Icons.Filled.ReportProblem, contentDescription = null) },
                     colors = chipColors
                 )
             }
@@ -371,5 +390,55 @@ private fun DifficultyLegend(showUnrated: Boolean, modifier: Modifier = Modifier
                 Text("Not rated", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(start = 4.dp))
             }
         }
+    }
+}
+
+/** A red (or amber/orange by severity) disc with an exclamation mark, drawn in code so it needs no image. */
+private class IncidentBadge(private val density: Float, severity: Int) : android.graphics.drawable.Drawable() {
+    private val size = (26 * density).toInt()
+    private val fill = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = (severityColor(severity)?.toArgb()) ?: 0xFFC62828.toInt()
+    }
+    private val ring = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE; style = android.graphics.Paint.Style.STROKE; strokeWidth = 2.5f * density
+    }
+    private val mark = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE; textAlign = android.graphics.Paint.Align.CENTER
+        textSize = 17f * density; isFakeBoldText = true
+    }
+
+    override fun draw(canvas: android.graphics.Canvas) {
+        val cx = bounds.exactCenterX()
+        val cy = bounds.exactCenterY()
+        val r = size / 2f - ring.strokeWidth
+        canvas.drawCircle(cx, cy, r, fill)
+        canvas.drawCircle(cx, cy, r, ring)
+        canvas.drawText("!", cx, cy + mark.textSize * 0.35f, mark)
+    }
+
+    override fun getIntrinsicWidth() = size
+    override fun getIntrinsicHeight() = size
+    override fun setAlpha(alpha: Int) {}
+    override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
+}
+
+/** One marker per incident that has a place; tapping it shows what happened and when. */
+internal fun addIncidentMarkers(mapView: MapView, incidents: List<Incident>) {
+    val density = mapView.resources.displayMetrics.density
+    val timeFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+    incidents.forEach { incident ->
+        val lat = incident.lat ?: return@forEach
+        val lon = incident.lon ?: return@forEach
+        mapView.overlays.add(Marker(mapView).apply {
+            position = GeoPoint(lat, lon)
+            icon = IncidentBadge(density, incident.severity)
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            title = incident.category.label()
+            snippet = timeFormat.format(Date(incident.timestamp)) +
+                (severityLabel(incident.severity)?.let { " · $it" } ?: "") +
+                (if (incident.notes.isNotBlank()) "\n" + incident.notes else "")
+        })
     }
 }

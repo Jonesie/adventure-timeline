@@ -1,6 +1,8 @@
 package net.jonesie.traveldiary.util
 
 import net.jonesie.traveldiary.data.Impression
+import net.jonesie.traveldiary.data.Incident
+import net.jonesie.traveldiary.data.IncidentCategory
 import net.jonesie.traveldiary.data.Leg
 import net.jonesie.traveldiary.data.MediaItem
 import net.jonesie.traveldiary.data.MediaType
@@ -108,5 +110,22 @@ class TripStatsCalculatorTest {
         )
         assertNull(stats.averageRating)
         assertNull(stats.longestTrip)
+    }
+
+    @Test
+    fun countsIncidentsByCategoryMostCommonFirst() {
+        fun incident(category: IncidentCategory, severity: Int = 0) =
+            Incident(tripId = null, category = category, severity = severity, timestamp = june2025)
+        val stats = TripStatsCalculator.compute(
+            trips = listOf(trip(1, june2025)), legs = emptyList(), trails = emptyMap(), media = emptyList(), impressions = emptyList(),
+            incidents = listOf(
+                incident(IncidentCategory.LOST), incident(IncidentCategory.FELL_OFF, severity = 3),
+                incident(IncidentCategory.FELL_OFF), incident(IncidentCategory.WATER, severity = 2)
+            )
+        )
+        assertEquals(4, stats.incidents)
+        assertEquals(listOf(IncidentCategory.FELL_OFF, IncidentCategory.WATER, IncidentCategory.LOST), stats.byIncident.map { it.category })
+        assertEquals(2, stats.byIncident.first().count)
+        assertEquals(1, stats.seriousIncidents)
     }
 }

@@ -71,7 +71,8 @@ fun AboutScreen(onBack: () -> Unit) {
             Body(
                 "Open the map to see every trip you've taken at once. Tap a route to open the trip, and filter by how you travelled, " +
                     "whether that was on a motorbike, in a car or on foot. Ask “have I been here before?” and it will tell you which " +
-                    "trips passed this way. Turn a trip into a picture or PDF to share with whoever you choose."
+                    "trips passed this way. Log an incident the moment something goes wrong, a spill, a wrong turn, a river crossing, and it " +
+                    "will join the right trip once it's imported. Turn a trip into a picture or PDF to share with whoever you choose."
             )
 
             Heading("Why I made it")

@@ -42,6 +42,7 @@ fun FullScreenMapScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: (
                 legs = trip.legs,
                 modifier = Modifier.fillMaxSize().padding(padding),
                 media = trip.sortedMedia(),
+                incidents = trip.incidents,
                 onOpenMedia = onOpenMedia
             )
         }

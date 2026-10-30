@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.jonesie.traveldiary.data.Companion
 import net.jonesie.traveldiary.data.Impression
+import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.Leg
 import net.jonesie.traveldiary.data.MediaItem
 import net.jonesie.traveldiary.data.MediaType
@@ -142,12 +143,16 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    fun addMedia(tripId: Long, legId: Long?, type: MediaType, uri: String, caption: String, lat: Double?, lon: Double?) {
+    fun addMedia(
+        tripId: Long?, legId: Long?, type: MediaType, uri: String, caption: String, lat: Double?, lon: Double?,
+        incidentId: Long? = null
+    ) {
         viewModelScope.launch {
             dao.insertMediaItem(
                 MediaItem(
                     tripId = tripId,
                     legId = legId,
+                    incidentId = incidentId,
                     type = type,
                     uri = uri,
                     timestamp = System.currentTimeMillis(),
@@ -173,6 +178,73 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
             )
         }
     }
+
+    // ---- Incidents
+
+    /** Every incident, newest first, with or without a trip. */
+    val incidents: StateFlow<List<Incident>> = dao.observeIncidents()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Photos and videos linked to incidents, whether or not their incident has a trip yet. */
+    val incidentMedia: StateFlow<List<MediaItem>> = dao.observeIncidentMedia()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun addIncident(incident: Incident, onDone: (Long) -> Unit = {}) {
+        viewModelScope.launch {
+            val id = dao.insertIncident(incident)
+            assignIncidentsToTrips()
+            onDone(id)
+        }
+    }
+
+    fun updateIncident(incident: Incident) {
+        viewModelScope.launch {
+            dao.updateIncident(incident)
+            assignIncidentsToTrips()
+        }
+    }
+
+    suspend fun incident(id: Long): Incident? = dao.getIncident(id)
+
+    /** Photos and videos that belong to a trip stay in it; ones that never had a trip go with the incident. */
+    fun deleteIncident(id: Long) {
+        viewModelScope.launch {
+            val loose = dao.getTripLessIncidentMedia(id)
+            dao.deleteTripLessIncidentMedia(id)
+            withContext(Dispatchers.IO) { loose.forEach { MediaFiles.deleteIfOwned(getApplication(), it.uri) } }
+            dao.unlinkIncidentMedia(id)
+            dao.deleteIncidentById(id)
+        }
+    }
+
+    /**
+     * Incidents are logged on the road, before the trip exists. Once a trip covers the moment an
+     * incident happened it joins that trip (with its photos and videos), and takes its place from
+     * the trip's GPS trail if it was logged without a location.
+     */
+    suspend fun assignIncidentsToTrips() {
+        val waiting = dao.getUnassignedIncidents()
+        if (waiting.isEmpty()) return
+        val trips = dao.getAllTrips()
+        waiting.forEach { incident ->
+            val trip = trips.firstOrNull { incident.timestamp in TripTimeWindow.of(it) } ?: return@forEach
+            val place = if (incident.lat == null) routePositionAt(trip.id, incident.timestamp) else null
+            dao.assignIncident(incident.id, trip.id, place?.first, place?.second)
+            dao.assignIncidentMedia(incident.id, trip.id)
+        }
+    }
+
+    /**
+     * Where the trip's GPS trail was around [timestamp], for incidents logged after the fact. Null when
+     * the trail doesn't come within [maxGapMs] of that moment.
+     */
+    suspend fun routePositionAt(tripId: Long, timestamp: Long, maxGapMs: Long = 30 * 60_000L): Pair<Double, Double>? =
+        withContext(Dispatchers.IO) {
+            dao.getRoutePointsForTrip(tripId)
+                .minByOrNull { Math.abs(it.timestamp - timestamp) }
+                ?.takeIf { Math.abs(it.timestamp - timestamp) <= maxGapMs }
+                ?.let { it.lat to it.lon }
+        }
 
     /**
      * Called sequentially (one trip at a time) from the import screen's own coroutine so
@@ -283,6 +355,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
                 pathPoints.sortedBy { it.timestamp }.map { RoutePoint(tripId = tripId, lat = it.lat, lon = it.lon, timestamp = it.timestamp) }
             )
         }
+        assignIncidentsToTrips()
     }
 
     suspend fun routePointsFor(tripId: Long) = dao.getRoutePointsForTrip(tripId)
@@ -293,7 +366,8 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
             legs = dao.getAllLegs(),
             trails = dao.getAllRoutePoints().groupBy { it.tripId },
             media = dao.getAllMedia(),
-            impressions = dao.getAllImpressions()
+            impressions = dao.getAllImpressions(),
+            incidents = dao.getAllIncidents()
         )
     }
 
@@ -357,7 +431,10 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
      * Copies picked files into the app and adds them to the trip. [forcedType] overrides the
      * photo/video guess from the file's mime type (used for audio files).
      */
-    fun importFiles(tripId: Long, uris: List<Uri>, forcedType: MediaType?, onDone: (added: Int, failed: Int) -> Unit) {
+    fun importFiles(
+        tripId: Long?, uris: List<Uri>, forcedType: MediaType?, incidentId: Long? = null,
+        onDone: (added: Int, failed: Int) -> Unit
+    ) {
         if (uris.isEmpty()) return
         viewModelScope.launch {
             val context = getApplication<Application>()
@@ -379,7 +456,8 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
                             tripId = tripId,
                             type = type,
                             uri = copied.uri.toString(),
-                            timestamp = copied.takenAt ?: System.currentTimeMillis()
+                            timestamp = copied.takenAt ?: System.currentTimeMillis(),
+                            incidentId = incidentId
                         )
                     )
                     added++
@@ -615,7 +693,11 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     fun deleteTrip(tripId: Long) {
-        viewModelScope.launch { dao.deleteTripById(tripId) }
+        viewModelScope.launch {
+            // Incidents survive their trip, and so do the photos and videos that document them.
+            dao.detachIncidentMediaFromTrip(tripId)
+            dao.deleteTripById(tripId)
+        }
     }
 
 
@@ -720,13 +802,18 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     fun deleteAllTrips() {
-        viewModelScope.launch { dao.deleteAllTrips() }
+        viewModelScope.launch {
+            dao.deleteAllTrips()
+            dao.deleteAllIncidents()
+            dao.deleteTripLessMedia()
+        }
     }
 
     suspend fun findNearby(lat: Double, lon: Double): NearbyResult {
         val impressions = dao.findImpressionsNear(lat, lon, NEARBY_RADIUS_DEGREES_SQUARED)
         val media = dao.findMediaNear(lat, lon, NEARBY_RADIUS_DEGREES_SQUARED)
-        return NearbyResult(impressions, media)
+        val incidents = dao.findIncidentsNear(lat, lon, NEARBY_RADIUS_DEGREES_SQUARED)
+        return NearbyResult(impressions, media, incidents)
     }
 }
 
@@ -843,7 +930,8 @@ data class MediaImportProgress(val done: Int, val total: Int)
 
 data class NearbyResult(
     val impressions: List<Impression>,
-    val media: List<MediaItem>
+    val media: List<MediaItem>,
+    val incidents: List<Incident> = emptyList()
 ) {
-    val isEmpty: Boolean get() = impressions.isEmpty() && media.isEmpty()
+    val isEmpty: Boolean get() = impressions.isEmpty() && media.isEmpty() && incidents.isEmpty()
 }

@@ -1,6 +1,8 @@
 package net.jonesie.traveldiary.util
 
 import net.jonesie.traveldiary.data.Impression
+import net.jonesie.traveldiary.data.Incident
+import net.jonesie.traveldiary.data.IncidentCategory
 import net.jonesie.traveldiary.data.Leg
 import net.jonesie.traveldiary.data.MediaItem
 import net.jonesie.traveldiary.data.MediaType
@@ -14,6 +16,7 @@ import java.time.ZoneId
 data class TransportStat(val type: TransportType, val km: Double, val hours: Double, val legs: Int)
 data class YearStat(val year: Int, val trips: Int, val km: Double)
 data class TripDistance(val trip: Trip, val km: Double)
+data class IncidentStat(val category: IncidentCategory, val count: Int)
 
 data class TripStats(
     val trips: Int,
@@ -24,6 +27,10 @@ data class TripStats(
     val videos: Int,
     val voiceNotes: Int,
     val notes: Int,
+    val incidents: Int,
+    /** Most common first. */
+    val byIncident: List<IncidentStat>,
+    val seriousIncidents: Int,
     val byTransport: List<TransportStat>,
     val byYear: List<YearStat>,
     /** Index 0 = not rated, 1..5 = that many stars. */
@@ -44,7 +51,8 @@ object TripStatsCalculator {
         legs: List<Leg>,
         trails: Map<Long, List<RoutePoint>>,
         media: List<MediaItem>,
-        impressions: List<Impression>
+        impressions: List<Impression>,
+        incidents: List<Incident> = emptyList()
     ): TripStats {
         val legsByTrip = legs.groupBy { it.tripId }
         val kmByTransport = HashMap<TransportType, Double>()
@@ -113,6 +121,11 @@ object TripStatsCalculator {
             videos = media.count { it.type == MediaType.VIDEO },
             voiceNotes = media.count { it.type == MediaType.AUDIO },
             notes = impressions.size,
+            incidents = incidents.size,
+            byIncident = incidents.groupingBy { it.category }.eachCount()
+                .map { IncidentStat(it.key, it.value) }
+                .sortedWith(compareByDescending<IncidentStat> { it.count }.thenBy { it.category.ordinal }),
+            seriousIncidents = incidents.count { it.severity >= 3 },
             byTransport = transports,
             byYear = byYear,
             ratingCounts = ratingCounts,

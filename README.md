@@ -39,7 +39,7 @@ name is blurred.*
 - **Sort** the trip list by date or rating, ascending or descending (unrated trips always last by rating).
 - **Search** the diary by title, by place name, or near your current location. Place and location
   searches list trips whose route, stops, notes or media came within 1, 5 or 25 km.
-- **Trip screen with five tabs**: Map (dates, rating, route map, companions), Legs, Media, Notes, Share.
+- **Trip screen with six tabs**: Map (dates, rating, route map, companions), Legs, Media, Notes, Incidents, Share.
 - **Legs** with a transport type (walk, bike, motorbike, car, 4WD, bus, train, plane, boat, other),
   plus a difficulty (1-5) and an enjoyment (1-5 stars). Edit a single leg, or change the transport for
   every leg of a type across a whole trip.
@@ -79,6 +79,12 @@ name is blurred.*
   so tapping one opens their contact card. Settings can link existing names in one go. Only names
   and Android's contact IDs are read; nothing leaves the phone.
 - **Notes**: quick timestamped impressions, tagged with your location when available.
+- **Incidents**: log what went wrong the moment it happens (fell off, ran off the road, river or water
+  mishap, got stuck, got lost, breakdown, flat tyre, injury, bad weather and more), with how bad it was, an
+  optional reason (from "not my fault" to "lack of focus"), when, a note, and photos or videos. It works before the trip exists: an incident stands on its own and
+  joins the trip that covers its time once that trip is imported, taking its place from the trip's GPS
+  trail if it was logged without a location. Incidents show as pins on the trip map and the all-trips map,
+  count in the stats, and turn up in "have I been here before?". The third tab on the main screens lists them all.
 - **Google Timeline import**: pulls the trips Google has already detected, with their legs, transport
   and route. Re-importing updates existing trips in place and keeps your manual changes
   (hand-edited transport and titles).

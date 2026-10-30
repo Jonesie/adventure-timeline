@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -42,6 +43,7 @@ interface TravelDiaryDao {
         SELECT DISTINCT tripId FROM legs WHERE originLat IS NOT NULL AND ((originLat - :lat) * (originLat - :lat) + ((originLon - :lon) * :cosLat) * ((originLon - :lon) * :cosLat)) < :radiusSquared UNION
         SELECT DISTINCT tripId FROM legs WHERE destinationLat IS NOT NULL AND ((destinationLat - :lat) * (destinationLat - :lat) + ((destinationLon - :lon) * :cosLat) * ((destinationLon - :lon) * :cosLat)) < :radiusSquared UNION
         SELECT DISTINCT tripId FROM impressions WHERE lat IS NOT NULL AND ((lat - :lat) * (lat - :lat) + ((lon - :lon) * :cosLat) * ((lon - :lon) * :cosLat)) < :radiusSquared UNION
+        SELECT DISTINCT tripId FROM incidents WHERE lat IS NOT NULL AND ((lat - :lat) * (lat - :lat) + ((lon - :lon) * :cosLat) * ((lon - :lon) * :cosLat)) < :radiusSquared UNION
         SELECT DISTINCT tripId FROM media_items WHERE lat IS NOT NULL AND ((lat - :lat) * (lat - :lat) + ((lon - :lon) * :cosLat) * ((lon - :lon) * :cosLat)) < :radiusSquared
     """)
     suspend fun findTripIdsNear(lat: Double, lon: Double, cosLat: Double, radiusSquared: Double): List<Long>
@@ -100,7 +102,7 @@ interface TravelDiaryDao {
     @Insert
     suspend fun insertMediaItem(mediaItem: MediaItem): Long
 
-    @Query("SELECT tripId, type FROM media_items GROUP BY tripId, type")
+    @Query("SELECT tripId, type FROM media_items WHERE tripId IS NOT NULL GROUP BY tripId, type")
     fun observeTripMediaKinds(): Flow<List<TripMediaKind>>
 
     @Insert
@@ -130,6 +132,53 @@ interface TravelDiaryDao {
     @Insert
     suspend fun insertRoutePoints(points: List<RoutePoint>)
 
+    @Insert
+    suspend fun insertIncident(incident: Incident): Long
+
+    @Update
+    suspend fun updateIncident(incident: Incident)
+
+    @Query("SELECT * FROM incidents WHERE id = :id")
+    suspend fun getIncident(id: Long): Incident?
+
+    @Query("DELETE FROM incidents WHERE id = :id")
+    suspend fun deleteIncidentById(id: Long)
+
+    /** Un-links an incident's photos and videos; any that were never in a trip are returned for cleanup. */
+    @Query("UPDATE media_items SET incidentId = NULL WHERE incidentId = :incidentId AND tripId IS NOT NULL")
+    suspend fun unlinkIncidentMedia(incidentId: Long)
+
+    @Query("SELECT * FROM media_items WHERE incidentId = :incidentId AND tripId IS NULL")
+    suspend fun getTripLessIncidentMedia(incidentId: Long): List<MediaItem>
+
+    @Query("DELETE FROM media_items WHERE incidentId = :incidentId AND tripId IS NULL")
+    suspend fun deleteTripLessIncidentMedia(incidentId: Long)
+
+    @Query("SELECT * FROM incidents ORDER BY timestamp DESC")
+    fun observeIncidents(): Flow<List<Incident>>
+
+    @Query("SELECT * FROM media_items WHERE incidentId IS NOT NULL ORDER BY timestamp")
+    fun observeIncidentMedia(): Flow<List<MediaItem>>
+
+    @Query("SELECT * FROM incidents WHERE tripId IS NULL")
+    suspend fun getUnassignedIncidents(): List<Incident>
+
+    @Query("UPDATE incidents SET tripId = :tripId, lat = COALESCE(lat, :lat), lon = COALESCE(lon, :lon) WHERE id = :id")
+    suspend fun assignIncident(id: Long, tripId: Long, lat: Double?, lon: Double?)
+
+    @Query("UPDATE media_items SET tripId = :tripId WHERE incidentId = :incidentId AND tripId IS NULL")
+    suspend fun assignIncidentMedia(incidentId: Long, tripId: Long)
+
+    /** A trip's incident photos must not vanish with the trip: they go back to being trip-less. */
+    @Query("UPDATE media_items SET tripId = NULL WHERE incidentId IS NOT NULL AND tripId = :tripId")
+    suspend fun detachIncidentMediaFromTrip(tripId: Long)
+
+    @Query("DELETE FROM incidents")
+    suspend fun deleteAllIncidents()
+
+    @Query("DELETE FROM media_items WHERE tripId IS NULL")
+    suspend fun deleteTripLessMedia()
+
     // Whole-diary backup / restore.
     @Query("SELECT * FROM trips") suspend fun getAllTrips(): List<Trip>
     @Query("SELECT * FROM route_points ORDER BY tripId, timestamp") suspend fun getAllRoutePoints(): List<RoutePoint>
@@ -138,12 +187,14 @@ interface TravelDiaryDao {
     @Query("SELECT * FROM legs") suspend fun getAllLegs(): List<Leg>
     @Query("SELECT * FROM media_items") suspend fun getAllMedia(): List<MediaItem>
     @Query("SELECT * FROM impressions") suspend fun getAllImpressions(): List<Impression>
+    @Query("SELECT * FROM incidents") suspend fun getAllIncidents(): List<Incident>
 
     @Insert suspend fun insertTrips(items: List<Trip>)
     @Insert suspend fun insertCompanions(items: List<Companion>)
     @Insert suspend fun insertCrossRefs(items: List<TripCompanionCrossRef>)
     @Insert suspend fun insertLegs(items: List<Leg>)
     @Insert suspend fun insertImpressions(items: List<Impression>)
+    @Insert suspend fun insertIncidents(items: List<Incident>)
 
     @Query("DELETE FROM companions") suspend fun deleteAllCompanions()
 
@@ -169,6 +220,17 @@ interface TravelDiaryDao {
         """
     )
     suspend fun findImpressionsNear(lat: Double, lon: Double, radiusDegreesSquared: Double): List<Impression>
+
+    /** Past incidents near a point, so "have I been here before?" can warn about a bad spot. */
+    @Query(
+        """
+        SELECT * FROM incidents
+        WHERE lat IS NOT NULL AND lon IS NOT NULL
+        AND (lat - :lat) * (lat - :lat) + (lon - :lon) * (lon - :lon) < :radiusDegreesSquared
+        ORDER BY timestamp DESC
+        """
+    )
+    suspend fun findIncidentsNear(lat: Double, lon: Double, radiusDegreesSquared: Double): List<Incident>
 
     @Query(
         """

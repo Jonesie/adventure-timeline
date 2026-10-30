@@ -14,7 +14,10 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material3.FilterChip
+import androidx.compose.runtime.collectAsState
+import net.jonesie.traveldiary.data.Incident
 import androidx.compose.material3.FilterChipDefaults
 import net.jonesie.traveldiary.data.TransportType
 import org.osmdroid.views.overlay.Marker
@@ -85,6 +88,7 @@ private class AllTripsMapState {
     var drawnWaypoints: List<TripWaypoint>? = null
     var drawnLocation: GeoPoint? = null
     var drawnPins: List<PhotoPin>? = null
+    var drawnIncidents: List<Incident>? = null
     var fitted = false
 }
 
@@ -95,6 +99,7 @@ private fun draw(
     waypoints: List<TripWaypoint>,
     myLocation: GeoPoint?,
     pins: List<PhotoPin>,
+    incidents: List<Incident>,
     onOpenPin: (PhotoPin) -> Unit,
     dark: Boolean,
     onTap: (GeoPoint) -> Unit
@@ -146,6 +151,7 @@ private fun draw(
         }
     }
     addPhotoPins(mapView, pins, onOpenPin)
+    addIncidentMarkers(mapView, incidents)
     addOsmCredit(mapView, dark)
     myLocation?.let { addMyLocationMarker(mapView, it) }
     mapView.invalidate()
@@ -195,6 +201,7 @@ fun AllTripsMapScreen(
     onOpenTrip: (Long) -> Unit,
     onOpenMedia: (Long, Int) -> Unit,
     onShowList: () -> Unit,
+    onShowIncidents: () -> Unit,
     onNearby: () -> Unit,
     onOpenStats: () -> Unit,
     onOpenSettings: () -> Unit
@@ -207,6 +214,9 @@ fun AllTripsMapScreen(
     var myLocation by remember { mutableStateOf<GeoPoint?>(null) }
     var mapRef by remember { mutableStateOf<MapView?>(null) }
     var showPhotos by remember { mutableStateOf(saved.showPhotos) }
+    var showIncidents by remember { mutableStateOf(true) }
+    val allIncidents by viewModel.incidents.collectAsState()
+    val incidentsWithPlace = remember(allIncidents) { allIncidents.filter { it.lat != null && it.lon != null } }
     SideEffect {
         saved.selectedTripId = selectedId
         saved.showWaypoints = showWaypoints
@@ -233,7 +243,7 @@ fun AllTripsMapScreen(
                 }
             )
         },
-        bottomBar = { MainTabBar(selected = MainTab.MAP, onMap = {}, onList = onShowList) }
+        bottomBar = { MainTabBar(selected = MainTab.MAP, onMap = {}, onList = onShowList, onIncidents = onShowIncidents) }
     ) { padding ->
         val loaded = routes
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -264,6 +274,7 @@ fun AllTripsMapScreen(
             val pins = remember(visible, showPhotos) {
                 if (showPhotos) visible.flatMap { photoPinsFor(it.trip.id, it.media) } else emptyList()
             }
+            val shownIncidents = if (showIncidents) incidentsWithPlace else emptyList()
             val hasPins = remember(withRoutes) { withRoutes.any { r -> r.media.any { it.lat != null } } }
             TripsMap(
                 saved = saved,
@@ -273,6 +284,7 @@ fun AllTripsMapScreen(
                 waypoints = waypoints,
                 myLocation = myLocation,
                 pins = pins,
+                incidents = shownIncidents,
                 onOpenPin = { onOpenMedia(it.tripId, it.index) },
                 onMapReady = { mapRef = it },
                 onSelect = { selectedId = it }
@@ -304,6 +316,15 @@ fun AllTripsMapScreen(
                             onClick = { showPhotos = !showPhotos },
                             label = { Text("Photos") },
                             leadingIcon = if (showPhotos) tick else { { Icon(Icons.Filled.Image, contentDescription = null) } },
+                            colors = chipColors
+                        )
+                    }
+                    if (incidentsWithPlace.isNotEmpty()) {
+                        FilterChip(
+                            selected = showIncidents,
+                            onClick = { showIncidents = !showIncidents },
+                            label = { Text("Incidents") },
+                            leadingIcon = if (showIncidents) tick else { { Icon(Icons.Filled.ReportProblem, contentDescription = null) } },
                             colors = chipColors
                         )
                     }
@@ -364,6 +385,7 @@ private fun TripsMap(
     waypoints: List<TripWaypoint>,
     myLocation: GeoPoint?,
     pins: List<PhotoPin>,
+    incidents: List<Incident>,
     onOpenPin: (PhotoPin) -> Unit,
     onMapReady: (MapView) -> Unit,
     onSelect: (Long?) -> Unit
@@ -404,9 +426,10 @@ private fun TripsMap(
             },
             update = { mapView ->
                 if (state.drawnRoutes != routes || state.drawnSelection != selectedId ||
-                    state.drawnWaypoints != waypoints || state.drawnLocation != myLocation || state.drawnPins != pins
+                    state.drawnWaypoints != waypoints || state.drawnLocation != myLocation || state.drawnPins != pins ||
+                    state.drawnIncidents != incidents
                 ) {
-                    draw(mapView, routes, selectedId, waypoints, myLocation, pins, latestOpenPin, dark) { tap ->
+                    draw(mapView, routes, selectedId, waypoints, myLocation, pins, incidents, latestOpenPin, dark) { tap ->
                         latestSelect(nearestTrip(mapView, latestRoutes, tap, 28f * mapView.resources.displayMetrics.density))
                     }
                     state.drawnRoutes = routes
@@ -414,6 +437,7 @@ private fun TripsMap(
                     state.drawnWaypoints = waypoints
                     state.drawnLocation = myLocation
                     state.drawnPins = pins
+                    state.drawnIncidents = incidents
                     // Fit once, to every trip, so toggling a filter doesn't move the map.
                     if (!state.fitted) {
                         state.fitted = true

@@ -12,6 +12,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.jonesie.traveldiary.data.Companion
 import net.jonesie.traveldiary.data.Impression
+import net.jonesie.traveldiary.data.Incident
+import net.jonesie.traveldiary.data.IncidentCategory
+import net.jonesie.traveldiary.data.IncidentReason
 import net.jonesie.traveldiary.data.Leg
 import net.jonesie.traveldiary.data.MediaItem
 import net.jonesie.traveldiary.data.MediaType
@@ -140,6 +143,7 @@ object DiaryBackup {
                 val m = p.item
                 writer.beginObject()
                 writer.put("id", m.id); writer.put("tripId", m.tripId); writer.put("legId", m.legId)
+                writer.put("incidentId", m.incidentId)
                 writer.put("type", m.type.name)
                 if (p.entryName != null) writer.put("file", p.entryName) else writer.put("uri", m.uri)
                 writer.put("timestamp", m.timestamp); writer.put("caption", m.caption)
@@ -153,6 +157,18 @@ object DiaryBackup {
                 writer.beginObject()
                 writer.put("id", i.id); writer.put("tripId", i.tripId); writer.put("legId", i.legId)
                 writer.put("text", i.text); writer.put("timestamp", i.timestamp)
+                writer.put("lat", i.lat); writer.put("lon", i.lon)
+                writer.endObject()
+            }
+            writer.endArray()
+
+            writer.name("incidents").beginArray()
+            dao.getAllIncidents().forEach { i ->
+                writer.beginObject()
+                writer.put("id", i.id); writer.put("tripId", i.tripId); writer.put("legId", i.legId)
+                writer.put("category", i.category.name); writer.put("severity", i.severity.toLong())
+                writer.put("reason", i.reason?.name)
+                writer.put("notes", i.notes); writer.put("timestamp", i.timestamp)
                 writer.put("lat", i.lat); writer.put("lon", i.lon)
                 writer.endObject()
             }
@@ -233,6 +249,7 @@ object DiaryBackup {
         val legs: List<Leg>,
         val media: List<ParsedMedia>,
         val impressions: List<Impression>,
+        val incidents: List<Incident>,
         val routes: List<RoutePoint>
     )
 
@@ -291,6 +308,8 @@ object DiaryBackup {
 
                 db.withTransaction {
                     dao.deleteAllTrips()
+                    dao.deleteAllIncidents()
+                    dao.deleteTripLessMedia()
                     dao.deleteAllCompanions()
                     dao.insertTrips(data.trips)
                     dao.insertCompanions(data.companions)
@@ -298,6 +317,7 @@ object DiaryBackup {
                     dao.insertLegs(data.legs)
                     dao.insertMediaItems(mediaItems)
                     dao.insertImpressions(data.impressions)
+                    dao.insertIncidents(data.incidents)
                     data.routes.chunked(5000).forEach { dao.insertRoutePoints(it) }
                 }
 
@@ -323,6 +343,7 @@ object DiaryBackup {
         val legs = mutableListOf<Leg>()
         val media = mutableListOf<ParsedMedia>()
         val impressions = mutableListOf<Impression>()
+        val incidents = mutableListOf<Incident>()
         val routes = mutableListOf<RoutePoint>()
 
         reader.beginObject()
@@ -359,9 +380,10 @@ object DiaryBackup {
                     val type = runCatching { MediaType.valueOf(m.string("type")) }.getOrNull() ?: return@readObjects
                     media += ParsedMedia(
                         MediaItem(
-                            id = m.long("id"), tripId = m.long("tripId"), legId = m.longOrNull("legId"), type = type,
+                            id = m.long("id"), tripId = m.longOrNull("tripId"), legId = m.longOrNull("legId"), type = type,
                             uri = m.stringOrNull("uri") ?: "", timestamp = m.long("timestamp"),
-                            caption = m.stringOrNull("caption") ?: "", lat = m.doubleOrNull("lat"), lon = m.doubleOrNull("lon")
+                            caption = m.stringOrNull("caption") ?: "", lat = m.doubleOrNull("lat"), lon = m.doubleOrNull("lon"),
+                            incidentId = m.longOrNull("incidentId")
                         ),
                         file = m.stringOrNull("file")
                     )
@@ -371,6 +393,15 @@ object DiaryBackup {
                         id = m.long("id"), tripId = m.long("tripId"), legId = m.longOrNull("legId"),
                         text = m.string("text"), timestamp = m.long("timestamp"),
                         lat = m.doubleOrNull("lat"), lon = m.doubleOrNull("lon")
+                    )
+                }
+                "incidents" -> readObjects(reader) { m ->
+                    incidents += Incident(
+                        id = m.long("id"), tripId = m.longOrNull("tripId"), legId = m.longOrNull("legId"),
+                        category = runCatching { IncidentCategory.valueOf(m.string("category")) }.getOrDefault(IncidentCategory.OTHER),
+                        severity = m.long("severity").toInt(), notes = m.stringOrNull("notes") ?: "",
+                        timestamp = m.long("timestamp"), lat = m.doubleOrNull("lat"), lon = m.doubleOrNull("lon"),
+                        reason = m.stringOrNull("reason")?.let { r -> runCatching { IncidentReason.valueOf(r) }.getOrNull() }
                     )
                 }
                 "routes" -> {
@@ -407,7 +438,7 @@ object DiaryBackup {
 
         if (format < 1) error("This isn't an Adventure Timeline backup")
         if (format > FORMAT) error("This backup was made by a newer version of the app")
-        return Parsed(trips, companions, crossRefs, legs, media, impressions, routes)
+        return Parsed(trips, companions, crossRefs, legs, media, impressions, incidents, routes)
     }
 
     class Estimate(val appFilesBytes: Long, val cameraRollBytes: Long)

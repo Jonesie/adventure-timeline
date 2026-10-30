@@ -212,7 +212,7 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
             SettingRow(
                 icon = { Icon(Icons.Filled.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                 title = "Delete all trips",
-                subtitle = "Removes every trip, leg, photo, audio and impression.",
+                subtitle = "Removes every trip, leg, photo, audio, impression and incident.",
                 onClick = { confirmDeleteAll = true }
             )
 
@@ -371,7 +371,7 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
         AlertDialog(
             onDismissRequest = { confirmDeleteAll = false },
             title = { Text("Delete all trips?") },
-            text = { Text("This removes every trip, leg, photo, audio and impression. This can't be undone.") },
+            text = { Text("This removes every trip, leg, photo, audio, impression and incident. This can't be undone.") },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteAllTrips()

@@ -71,6 +71,13 @@ fun NearbyScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
                 result!!.isEmpty -> Text("No earlier visits logged near here.")
                 else -> {
                     Text("Yes — found earlier visits nearby:")
+                    result!!.incidents.forEach {
+                        Text(
+                            "⚠ ${DateFormat.getDateInstance().format(Date(it.timestamp))}: ${it.category.label()}" +
+                                (severityLabel(it.severity)?.let { s -> " ($s)" } ?: "") +
+                                if (it.notes.isNotBlank()) " — ${it.notes}" else ""
+                        )
+                    }
                     result!!.impressions.forEach {
                         Text("• ${DateFormat.getDateInstance().format(Date(it.timestamp))}: ${it.text}")
                     }

@@ -34,6 +34,9 @@ import kotlinx.coroutines.launch
 import net.jonesie.traveldiary.data.MediaType
 import net.jonesie.traveldiary.ui.AboutScreen
 import net.jonesie.traveldiary.ui.AddImpressionScreen
+import net.jonesie.traveldiary.ui.AddIncidentScreen
+import net.jonesie.traveldiary.ui.IncidentMediaViewerScreen
+import net.jonesie.traveldiary.ui.IncidentsScreen
 import net.jonesie.traveldiary.ui.AllTripsMapScreen
 import net.jonesie.traveldiary.ui.AddLegScreen
 import net.jonesie.traveldiary.ui.AddTripScreen
@@ -97,6 +100,7 @@ private fun TravelDiaryApp() {
                 onOpenTrip = { tripId -> navController.navigate("tripDetail/$tripId") },
                 onOpenMedia = { tripId, index -> navController.navigate("tripDetail/$tripId/media/$index") },
                 onShowList = { switchTab("tripList") },
+                onShowIncidents = { switchTab("incidents") },
                 onNearby = { navController.navigate("nearby") },
                 onOpenStats = { navController.navigate("stats") },
                 onOpenSettings = { navController.navigate("settings") }
@@ -111,7 +115,49 @@ private fun TravelDiaryApp() {
                 onNearby = { navController.navigate("nearby") },
                 onOpenStats = { navController.navigate("stats") },
                 onOpenSettings = { navController.navigate("settings") },
-                onShowMap = { switchTab("allTripsMap") }
+                onShowMap = { switchTab("allTripsMap") },
+                onShowIncidents = { switchTab("incidents") }
+            )
+        }
+
+        composable("incidents") {
+            IncidentsScreen(
+                viewModel = viewModel,
+                onAdd = { navController.navigate("incident") },
+                onEdit = { id -> navController.navigate("incident?incidentId=$id") },
+                onOpenMedia = { id, index -> navController.navigate("incidentMedia/$id/$index") },
+                onShowMap = { switchTab("allTripsMap") },
+                onShowList = { switchTab("tripList") }
+            )
+        }
+
+        composable(
+            "incident?tripId={tripId}&incidentId={incidentId}",
+            arguments = listOf(
+                navArgument("tripId") { type = NavType.LongType; defaultValue = -1L },
+                navArgument("incidentId") { type = NavType.LongType; defaultValue = -1L }
+            )
+        ) { entry ->
+            AddIncidentScreen(
+                tripId = entry.arguments?.getLong("tripId")?.takeIf { it >= 0 },
+                incidentId = entry.arguments?.getLong("incidentId")?.takeIf { it >= 0 },
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            "incidentMedia/{incidentId}/{index}",
+            arguments = listOf(
+                navArgument("incidentId") { type = NavType.LongType },
+                navArgument("index") { type = NavType.IntType }
+            )
+        ) { entry ->
+            IncidentMediaViewerScreen(
+                incidentId = entry.arguments?.getLong("incidentId") ?: return@composable,
+                startIndex = entry.arguments?.getInt("index") ?: 0,
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -283,6 +329,9 @@ private fun TravelDiaryApp() {
                 onRecordAudio = { navController.navigate("tripDetail/$tripId/recordAudio") },
                 onImportAudio = { importAudio.launch("audio/*") },
                 onAddImpression = { navController.navigate("tripDetail/$tripId/addImpression") },
+                onAddIncident = { navController.navigate("incident?tripId=$tripId") },
+                onEditIncident = { id -> navController.navigate("incident?incidentId=$id") },
+                onOpenIncidentMedia = { id, index -> navController.navigate("incidentMedia/$id/$index") },
                 onEdit = { navController.navigate("tripDetail/$tripId/edit") },
                 onOpenMap = { navController.navigate("tripDetail/$tripId/map") }
             )

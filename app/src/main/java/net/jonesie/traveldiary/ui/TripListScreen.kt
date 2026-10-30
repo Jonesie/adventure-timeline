@@ -77,7 +77,8 @@ fun TripListScreen(
     onNearby: () -> Unit,
     onOpenStats: () -> Unit,
     onOpenSettings: () -> Unit,
-    onShowMap: () -> Unit
+    onShowMap: () -> Unit,
+    onShowIncidents: () -> Unit
 ) {
     val trips by viewModel.trips.collectAsState()
     val mediaKinds by viewModel.mediaKindsByTrip.collectAsState()
@@ -191,7 +192,7 @@ fun TripListScreen(
                 }
             )
         },
-        bottomBar = { MainTabBar(selected = MainTab.LIST, onMap = onShowMap, onList = {}) },
+        bottomBar = { MainTabBar(selected = MainTab.LIST, onMap = onShowMap, onList = {}, onIncidents = onShowIncidents) },
         floatingActionButton = {
             FloatingActionButton(onClick = onAddTrip) {
                 Icon(Icons.Filled.Add, contentDescription = "Add trip")

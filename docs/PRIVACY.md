@@ -6,7 +6,7 @@ permalink: /privacy/
 
 # Adventure Timeline — Privacy Policy
 
-_Last updated: 28 October 2026_
+_Last updated: 31 October 2026_
 
 Adventure Timeline is a personal travel diary for Android. It is built to keep your information **on your own phone**. This policy explains what the app stores, what it asks permission for and why, and the few times it talks to the internet.
 
@@ -22,6 +22,7 @@ Everything below is created by you or imported by you, and is kept in the app's 
 - **Notes and impressions,** with the time and (if allowed) the location you were at when you wrote them.
 - **Companions:** names you type. If you allow access to contacts, a companion can be linked to a contact by its Android contact identifier.
 - **A location index of your gallery:** to suggest photos taken near a trip's route, the app reads where each gallery photo and video was taken and keeps a small cache of those locations. Nothing about the pictures themselves is copied.
+- **Incidents:** when you log something that went wrong (a spill, a wrong turn, a breakdown), the app stores what it was, how bad, when, a note, where (only if you let it tag your location) and any photos or videos you attach.
 - **A home area:** the app works out roughly where "home" is from where your trips usually start and end (or uses a place you choose, or none). It is used only on your phone, to avoid suggesting photos taken at home for a trip and to leave home off maps you share.
 - **Settings:** your theme, sort order, map view, home area and reminder choices.
 
@@ -35,7 +36,7 @@ The app only asks when you use a feature that needs it. You can refuse any of th
 |---|---|
 | **Camera** | Take photos and videos to add to a trip. |
 | **Microphone** | Record voice notes for a trip. |
-| **Location** | Tag notes and photos with where you were, show "near me" results, answer "have I been here before?", and centre the map on you. Used only while you use these features. |
+| **Location** | Tag notes, incidents and photos with where you were, show "near me" results, answer "have I been here before?", and centre the map on you. Used only while you use these features. |
 | **Photos, videos and audio** | Browse your gallery to add media to a trip, and find photos taken during or near a trip. |
 | **Access to location in photos** | Read the location stored inside your photos and videos, to pin them on maps and suggest them for trips. |
 | **Contacts (optional)** | Suggest names while you type a companion and link a companion to a contact. Only names and contact identifiers are read. |
