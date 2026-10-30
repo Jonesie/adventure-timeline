@@ -12,6 +12,8 @@ git push origin v1.0.0
 
 A tag with a suffix, like `v1.0.0-rc1`, is published as a pre-release.
 
+For detailed release notes, add `docs/release-notes/v1.0.0.md` before tagging; the workflow puts it at the top of the GitHub release, followed by the generated list of changes. A short `v1.0.0-play.txt` beside it is the text for Play's "What's new" box (500 characters at most), which is pasted in by hand when rolling out the draft.
+
 ## Versions
 
 The tag drives the version: `v1.2.3` gives `versionName` `1.2.3` and `versionCode` `10203` (`major*10000 + minor*100 + patch`). Play requires `versionCode` to keep increasing, so always tag a higher version than the last one uploaded.

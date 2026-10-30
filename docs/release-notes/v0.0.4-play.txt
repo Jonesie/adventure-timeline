@@ -1,0 +1,2 @@
+New: log incidents. Record a spill, wrong turn or river crossing gone sideways, even before the trip exists. Choose the type, how bad, who was involved and why, and add photos or videos. It joins the right trip automatically and shows as a pin on the map, a warning icon on the trip, and in Stats.
+Also new: edit the list of reasons in Settings, a new app icon, and a welcome guide for an empty diary.

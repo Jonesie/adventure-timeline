@@ -81,9 +81,17 @@ jobs:
             app/build/outputs/bundle/release/*.aab
             app/build/outputs/apk/release/*.apk
 
+      # Hand-written notes live in docs/release-notes/<tag>.md; the generated list of changes follows them.
+      - name: Find release notes
+        id: notes
+        run: |
+          f="docs/release-notes/${GITHUB_REF_NAME}.md"
+          if [ -f "$f" ]; then echo "path=$f" >> "$GITHUB_OUTPUT"; fi
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
+          body_path: ${{ steps.notes.outputs.path }}
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
