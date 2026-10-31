@@ -852,6 +852,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
             _backupProgress.value = "Starting…"
             val message = runCatching {
                 DiaryBackup.restore(getApplication(), source) { _backupProgress.value = it }
+                    .also { _incidentReasons.value = IncidentReasons.load(getApplication()) }
             }.fold(
                 onSuccess = {
                     buildString {

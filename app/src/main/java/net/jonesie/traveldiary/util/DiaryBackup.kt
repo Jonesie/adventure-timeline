@@ -183,6 +183,10 @@ object DiaryBackup {
             }
             writer.endArray()
 
+            writer.name("incidentReasons").beginArray()
+            IncidentReasons.load(context).forEach { writer.value(it) }
+            writer.endArray()
+
             // Route points are by far the biggest table, so each is a compact [lat, lon, time] triple.
             writer.name("routes").beginArray()
             trips.forEachIndexed { index, t ->
@@ -260,6 +264,7 @@ object DiaryBackup {
         val impressions: List<Impression>,
         val incidents: List<Incident>,
         val incidentPeople: List<IncidentPersonCrossRef>,
+        val incidentReasons: List<String>?,
         val routes: List<RoutePoint>
     )
 
@@ -331,6 +336,8 @@ object DiaryBackup {
                     dao.insertIncidentPeople(data.incidentPeople)
                     data.routes.chunked(5000).forEach { dao.insertRoutePoints(it) }
                 }
+                // Backups from before the list was kept leave this phone's own list alone.
+                data.incidentReasons?.let { IncidentReasons.save(context, it) }
 
                 // The database now points at the backup's files, so swap them in for the old ones.
                 mediaDir.listFiles()?.forEach { it.delete() }
@@ -356,6 +363,7 @@ object DiaryBackup {
         val impressions = mutableListOf<Impression>()
         val incidents = mutableListOf<Incident>()
         val incidentPeople = mutableListOf<IncidentPersonCrossRef>()
+        var incidentReasons: MutableList<String>? = null
         val routes = mutableListOf<RoutePoint>()
 
         reader.beginObject()
@@ -421,6 +429,13 @@ object DiaryBackup {
                 "incidentPeople" -> readObjects(reader) { m ->
                     incidentPeople += IncidentPersonCrossRef(m.long("incidentId"), m.long("companionId"))
                 }
+                "incidentReasons" -> {
+                    val list = mutableListOf<String>()
+                    reader.beginArray()
+                    while (reader.hasNext()) list += reader.nextString()
+                    reader.endArray()
+                    incidentReasons = list
+                }
                 "routes" -> {
                     reader.beginArray()
                     while (reader.hasNext()) {
@@ -455,7 +470,7 @@ object DiaryBackup {
 
         if (format < 1) error("This isn't an Adventure Timeline backup")
         if (format > FORMAT) error("This backup was made by a newer version of the app")
-        return Parsed(trips, companions, crossRefs, legs, media, impressions, incidents, incidentPeople, routes)
+        return Parsed(trips, companions, crossRefs, legs, media, impressions, incidents, incidentPeople, incidentReasons, routes)
     }
 
     class Estimate(val appFilesBytes: Long, val cameraRollBytes: Long)

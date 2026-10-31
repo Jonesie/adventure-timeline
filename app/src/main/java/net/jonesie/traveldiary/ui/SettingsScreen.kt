@@ -173,7 +173,7 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
             SettingRow(
                 icon = { Icon(Icons.Filled.Save, contentDescription = null) },
                 title = "Back up diary",
-                subtitle = "Save every trip, route, note and attached file to one zip. Put it on Drive or your computer.\n" +
+                subtitle = "Save every trip, route, note, incident and attached file to one zip. Put it on Drive or your computer.\n" +
                     (backupSettings.lastBackup?.let { "Last backed up ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))}" }
                         ?: "Never backed up"),
                 onClick = { showBackupOptions = true }
@@ -246,7 +246,7 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
             title = { Text("Back up diary") },
             text = {
                 Column {
-                    Text("Trips, routes, legs, ratings, notes, voice notes and photos or videos you took or imported through the app are always included.")
+                    Text("Trips, routes, legs, ratings, notes, incidents (and your list of incident reasons), voice notes and photos or videos you took or imported through the app are always included.")
                     estimate?.let {
                         Text(
                             "Backup size: about " + sizeText(it.appFilesBytes + if (includeCameraRoll) it.cameraRollBytes else 0L) + ".",
