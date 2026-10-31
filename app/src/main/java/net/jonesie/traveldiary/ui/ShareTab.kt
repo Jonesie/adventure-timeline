@@ -51,6 +51,8 @@ import net.jonesie.traveldiary.data.TripDetail
 import net.jonesie.traveldiary.util.ShareComposer
 import net.jonesie.traveldiary.util.ShareFormat
 import net.jonesie.traveldiary.util.ShareOptions
+import net.jonesie.traveldiary.util.TripExport
+import net.jonesie.traveldiary.util.TripExportOptions
 import org.osmdroid.views.MapView
 
 /** Keeps a shared picture or PDF a sensible length. */
@@ -87,6 +89,14 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
     var hideHome by remember { mutableStateOf(true) }
 
     val photos = remember(trip.media) { trip.sortedMedia().filter { it.type == MediaType.PHOTO } }
+
+    val videoCount = trip.media.count { it.type == MediaType.VIDEO }
+    val audioCount = trip.media.count { it.type == MediaType.AUDIO }
+    var exportPhotos by remember { mutableStateOf(true) }
+    var exportVideos by remember { mutableStateOf(false) }
+    var exportAudio by remember { mutableStateOf(false) }
+    var exportMap by remember { mutableStateOf(true) }
+    var exportProgress by remember { mutableStateOf<String?>(null) }
 
     if (includeMap) {
         // Not inside the scrolling list below, so the map's own pan/zoom gestures work.
@@ -192,10 +202,69 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                 }
             }
         }
+        item {
+            Text("Trip data for a video", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 20.dp))
+            Text(
+                "One zip with everything about this trip as JSON (legs, route, stops, place names, notes, incidents and where each " +
+                    "photo was taken) and the photos themselves, named in the order they were taken. Ready to use with other " +
+                    "pictures and clips in a video.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+        item { SwitchRow("Photos (${photos.size})", exportPhotos) { exportPhotos = it } }
+        item { SwitchRow("Videos ($videoCount), can be large", exportVideos) { exportVideos = it } }
+        item { SwitchRow("Voice notes ($audioCount)", exportAudio) { exportAudio = it } }
+        item { SwitchRow("Picture of the route map" + if (!includeMap) " (turn the map on above)" else "", exportMap && includeMap) { exportMap = it } }
+        item {
+            Button(
+                enabled = !busy && exportProgress == null,
+                onClick = {
+                    exportProgress = "Preparing…"
+                    scope.launch {
+                        try {
+                            val shownExport = homeCentre?.takeIf { hideHome }?.let { (lat, lon) ->
+                                mapExport?.withoutArea(lat, lon, homeSettings.radiusKm.toDouble())
+                            } ?: mapExport
+                            val snapshot = if (includeMap && exportMap) mapView?.let { captureMapImage(it, shownExport, dark) } else null
+                            val result = TripExport.export(
+                                context, trip,
+                                TripExportOptions(exportPhotos, exportVideos, exportAudio, snapshot)
+                            ) { exportProgress = it }
+                            val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", result.file)
+                            val send = Intent(Intent.ACTION_SEND).apply {
+                                type = "application/zip"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                putExtra(Intent.EXTRA_SUBJECT, trip.trip.title + " (trip data)")
+                                clipData = ClipData.newRawUri(trip.trip.title, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            if (result.mediaMissing > 0) {
+                                Toast.makeText(context, "${result.mediaMissing} files couldn't be read and are listed as missing", Toast.LENGTH_LONG).show()
+                            }
+                            context.startActivity(Intent.createChooser(send, "Share trip data"))
+                        } catch (e: Exception) {
+                            Toast.makeText(context, e.message ?: "Couldn't export the trip", Toast.LENGTH_LONG).show()
+                        } finally {
+                            exportProgress = null
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp)
+            ) {
+                if (exportProgress != null) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Text("  $exportProgress")
+                } else {
+                    Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("  Export trip data (zip)")
+                }
+            }
+        }
     }
 
     Button(
-        enabled = !busy,
+        enabled = !busy && exportProgress == null,
         onClick = {
             busy = true
             scope.launch {

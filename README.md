@@ -66,8 +66,11 @@ name is blurred.*
 - **Share tab** on each trip: compose a title, the framed route map, a caption, companions (optional),
   notes and up to 7 photos, then share it as a high-resolution picture or a PDF through the phone's
   share sheet. The route is redrawn sharp over the map tiles so it stays readable when zoomed. The home area can be hidden from the shared map.
+  The same tab can also export the trip as a **zip for video editing**: `trip.json` (legs with distances, the full route,
+  stops, place names, notes, incidents, and where and when each photo was taken) plus the photos (optionally videos and voice
+  notes), named in the order they were taken, and a picture of the route map.
 - **Themes**: light, dark, or follow the system (Settings → Appearance). Map tiles are inverted in dark mode.
-- **Settings**: back up the whole diary (trips, routes, notes, attached files) to one zip you save
+- **Settings**: back up the whole diary (trips, routes, notes, incidents and your reasons list, attached files) to one zip you save
   anywhere, e.g. Drive, and restore from it (restore replaces the current diary). "Free up space"
   swaps duplicate imported copies for links to the originals in the gallery. Also holds "Delete all trips".
   Backups are built locally, checked, then copied to the chosen place, and the dialog shows the
