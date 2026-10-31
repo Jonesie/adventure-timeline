@@ -1,0 +1,2 @@
+New: export a trip as a zip for video editing. On a trip's Share tab, get one file with the trip's legs, route, stops, place names, notes and incidents as JSON, plus the photos in the order taken (videos and voice notes optional).
+Also: backups now include your list of incident reasons, and the dark map is lighter, blue-grey and easier to read, with brighter place names.
