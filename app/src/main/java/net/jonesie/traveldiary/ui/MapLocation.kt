@@ -76,9 +76,38 @@ fun addOsmCredit(mapView: MapView, dark: Boolean) {
     )
 }
 
+/**
+ * Dark theme tiles: the map's brightness is inverted (dark ground, light text and lines) and tinted blue,
+ * with a little of the real colours mixed back in so water, parks and roads stay distinguishable.
+ * Each output channel runs from BASE (where the original was white) to TOP (where it was black).
+ */
+private val BLUE_DARK_TILES: android.graphics.ColorFilter = run {
+    val base = floatArrayOf(72f, 98f, 134f)
+    val top = floatArrayOf(255f, 255f, 255f)
+    // Steeper than base-to-top, so dark text and lines clip to full brightness while the ground stays put.
+    val gain = 1.7f
+    val colour = 0.15f // share of the plain inverted colours
+    val lr = 0.299f; val lg = 0.587f; val lb = 0.114f
+    val m = FloatArray(20)
+    for (c in 0..2) {
+        val k = gain * (top[c] - base[c]) / 255f
+        // brightness-only part, tinted
+        val row = floatArrayOf(-k * lr, -k * lg, -k * lb)
+        val mono = (1 - colour)
+        for (i in 0..2) m[c * 5 + i] = mono * row[i]
+        m[c * 5 + 4] = mono * (base[c] + 255f * k)
+        // plain inversion of this channel, squeezed so it never goes black
+        val scale = 0.8f
+        m[c * 5 + c] += colour * -scale
+        m[c * 5 + 4] += colour * (255f * scale + 60f)
+    }
+    m[18] = 1f
+    android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix(m))
+}
+
 /** Dark theme: invert the (light) map tiles so the map isn't a glaring white rectangle. */
 fun applyMapTheme(mapView: MapView, dark: Boolean) {
-    mapView.overlayManager.tilesOverlay.setColorFilter(if (dark) org.osmdroid.views.overlay.TilesOverlay.INVERT_COLORS else null)
+    mapView.overlayManager.tilesOverlay.setColorFilter(if (dark) BLUE_DARK_TILES else null)
 }
 
 /** A blue dot for "you are here". */
