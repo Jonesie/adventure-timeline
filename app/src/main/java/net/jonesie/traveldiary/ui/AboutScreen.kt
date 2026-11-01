@@ -89,7 +89,7 @@ fun AboutScreen(onBack: () -> Unit) {
             Heading("Your data stays yours")
             listOf(
                 "No ads, no tracking, no accounts.",
-                "Works offline. The only network use is map tiles and place-name lookups.",
+                "Works offline. The only network use is map tiles, place-name lookups, and the update check when you ask for it.",
                 "Backups and sharing happen only when you ask.",
                 "Free software under the GPL-3.0, so you can read, change and share the code."
             ).forEach { Text("•  $it", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 4.dp)) }
