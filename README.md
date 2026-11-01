@@ -126,7 +126,7 @@ deliberately not required, so the app can run on an older phone that does not ha
 
 ## Network use
 
-The app works offline. It only uses the network to fetch map tiles and to look up place names.
+The app works offline. It only uses the network to fetch map tiles, to look up place names, and, only when you tap **Settings → Check for updates**, to ask GitHub for the latest release number.
 
 ## Status and not built yet
 

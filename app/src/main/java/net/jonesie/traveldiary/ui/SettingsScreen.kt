@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -53,6 +54,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import net.jonesie.traveldiary.util.DiaryBackup
 import net.jonesie.traveldiary.util.DuplicateCopies
+import net.jonesie.traveldiary.util.UpdateCheck
+import net.jonesie.traveldiary.util.UpdateResult
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -102,6 +105,21 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
     var copyMatches by remember { mutableStateOf<List<DuplicateCopies.Match>?>(null) }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+    var checkingUpdate by remember { mutableStateOf(false) }
+    var updateResult by remember { mutableStateOf<UpdateResult?>(null) }
+    val installedVersion = remember(context) {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "0"
+    }
+    fun checkForUpdates() {
+        checkingUpdate = true
+        scope.launch {
+            updateResult = UpdateCheck.check(installedVersion)
+            checkingUpdate = false
+        }
+    }
+    fun openLink(url: String) {
+        runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
+    }
     fun runLink() {
         scope.launch {
             val (linked, total) = viewModel.linkCompanionsToContacts()
@@ -143,6 +161,12 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
                 title = "About Adventure Timeline",
                 subtitle = "What it is and why it exists.",
                 onClick = onOpenAbout
+            )
+            SettingRow(
+                icon = { Icon(Icons.Filled.SystemUpdate, contentDescription = null) },
+                title = "Check for updates",
+                subtitle = "You have version $installedVersion. Looks online for a newer release, only when you tap this.",
+                onClick = { checkForUpdates() }
             )
 
             SectionHeader("Appearance")
@@ -429,6 +453,55 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
                 }
             },
             confirmButton = {}
+        )
+    }
+
+    if (checkingUpdate) {
+        AlertDialog(
+            onDismissRequest = {},
+            text = {
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                    Text("Checking for updates…")
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
+    updateResult?.let { found ->
+        val packageName = context.packageName
+        AlertDialog(
+            onDismissRequest = { updateResult = null },
+            title = { Text(if (found is UpdateResult.Available) "Update available" else "Check for updates") },
+            text = {
+                Text(
+                    when (found) {
+                        is UpdateResult.Available -> "Version ${found.version} is out; you have $installedVersion. " +
+                            "It can take a little while to show up in Google Play after a release."
+                        is UpdateResult.UpToDate -> "You're up to date (version ${found.version})."
+                        UpdateResult.Failed -> "Couldn't check just now. You may be offline; try again when you have a connection."
+                    }
+                )
+            },
+            confirmButton = {
+                if (found is UpdateResult.Available) {
+                    TextButton(onClick = {
+                        updateResult = null
+                        openLink("https://play.google.com/store/apps/details?id=$packageName")
+                    }) { Text("Open Google Play") }
+                } else {
+                    TextButton(onClick = { updateResult = null }) { Text("OK") }
+                }
+            },
+            dismissButton = {
+                if (found is UpdateResult.Available) {
+                    TextButton(onClick = {
+                        updateResult = null
+                        openLink(found.releaseUrl)
+                    }) { Text("What's new") }
+                }
+            }
         )
     }
 

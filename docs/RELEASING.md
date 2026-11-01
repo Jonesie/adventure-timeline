@@ -52,7 +52,7 @@ Repository → Settings → Secrets and variables → Actions:
 Play will ask for these before the app can go public:
 
 - **Privacy policy URL** — required, because the app handles location, photos and (optionally) contacts.
-- **Data safety form** — the app keeps everything on the device; the only network use is map tiles and place-name lookups.
+- **Data safety form** — the app keeps everything on the device; the only network use is map tiles, place-name lookups, and a latest-release check that runs only when the user taps Settings → Check for updates (no data about the user is sent).
 - **Photo and video permissions declaration** — the app asks for `READ_MEDIA_IMAGES` / `READ_MEDIA_VIDEO`; Play wants a justification (finding trip photos in the gallery).
 - Sensitive permissions in use: precise location, `ACCESS_MEDIA_LOCATION`, `READ_CONTACTS` (optional, for suggesting companions), `RECORD_AUDIO` (voice notes), `CAMERA`.
 - Screenshots, short and full description, a 512×512 icon and a 1024×500 feature graphic.
