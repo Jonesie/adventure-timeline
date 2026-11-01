@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ride Video Editor</title>
+<style>
+:root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1b;--mute:#6b6a65;--line:#dcdad3;--acc:#c2410c;--ok:#15803d;--bad:#b91c1c;--d1:#2563eb;--d2:#c2410c;--d3:#15803d;--d4:#7c3aed}
+@media(prefers-color-scheme:dark){:root{--bg:#161615;--card:#212120;--ink:#ecebe6;--mute:#9b9a93;--line:#3a3a37;--acc:#fb923c;--ok:#4ade80;--bad:#f87171;--d1:#60a5fa;--d2:#fb923c;--d3:#4ade80;--d4:#c4b5fd}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px;display:grid;gap:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,select,textarea,button{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+button{cursor:pointer}button.pri{background:var(--acc);border-color:var(--acc);color:#fff}button:disabled{opacity:.5}
+#title{flex:2;min-width:240px;font-weight:600}#subtitle,#outro{flex:1;min-width:160px}
+main{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:16px;padding:16px}
+@media(max-width:1000px){main{grid-template-columns:1fr}}
+#side{position:sticky;top:110px;align-self:start;display:grid;gap:12px;max-height:calc(100vh - 120px);overflow:auto}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px}
+.seg{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px;display:grid;gap:6px}
+.seg.sel{outline:2px solid var(--acc)}.seg.off{opacity:.45}.seg.inc{border-left-color:var(--bad);background:color-mix(in srgb,var(--bad) 8%,var(--card))}
+.seg.chap{margin-top:16px}
+.top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.top .name{font-weight:600}.mute{color:var(--mute);font-size:12px}
+.thumbs{display:flex;gap:4px}.thumbs img{height:62px;border-radius:4px;cursor:pointer;background:var(--line)}
+.f{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.f label{display:flex;gap:4px;align-items:center;font-size:12px;color:var(--mute)}
+.f input[type=number]{width:70px}.cap{flex:1;min-width:180px}.chap-in{flex:1;min-width:160px;font-weight:600}
+.warn{font-size:12px;color:#92400e;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:2px 8px}
+@media(prefers-color-scheme:dark){.warn{color:#fcd34d;background:#451a03;border-color:#b45309}}
+#wcount{color:#b45309;cursor:pointer;font-weight:600}
+.badge{font-size:11px;padding:1px 6px;border-radius:10px;border:1px solid var(--line);color:var(--mute)}
+.handle{cursor:grab;color:var(--mute);user-select:none}
+video,#pimg{width:100%;border-radius:8px;background:#000}svg{width:100%;height:auto;display:block}
+#log{font:11px/1.3 monospace;white-space:pre-wrap;max-height:140px;overflow:auto;color:var(--mute)}
+.d1{--c:var(--d1)}.d2{--c:var(--d2)}.d3{--c:var(--d3)}.d4{--c:var(--d4)}
+</style></head><body>
+<header>
+ <div class="row"><input id="title" placeholder="Video title"><input id="subtitle" placeholder="Subtitle"><input id="outro" placeholder="Outro text"></div>
+ <div class="row"><input id="desc" style="flex:1;min-width:240px" placeholder="Description">
+  <span id="stats" class="mute"></span><span id="wcount" title="show only shots with warnings"></span>
+  <label class="mute" title="Background music. Make new tracks in other styles with Claude; they appear here">music <select id="music"></select> <input id="mvol" type="number" step="0.05" min="0" max="1.5" style="width:62px" title="music level (0.65 default)"></label>
+  <label class="mute" title="Default transition for the whole video; override per shot below">transitions <select id="trans"><option value="auto">auto (new chapter, day or clip)</option><option value="all">fade on every cut</option><option value="none">hard cuts only</option></select> <input id="tlen" type="number" step="0.1" min="0.1" max="1" style="width:60px" title="fade length (s)">s</label>
+  <select id="fday"><option value="">All days</option></select>
+  <select id="fkind"><option value="">All kinds</option><option>drone</option><option>action</option><option>phone</option><option>photo</option></select>
+  <label class="mute"><input type="checkbox" id="fdis" checked> show disabled</label>
+  <button id="save">Save</button><button id="render" class="pri">Save &amp; render</button><span id="msg" class="mute"></span></div>
+</header>
+<main><div id="list"></div>
+<aside id="side">
+ <div class="panel"><div class="mute" id="pcap">Select a segment, then press preview</div><video id="pv" controls style="display:none"></video><img id="pimg" style="display:none"></div>
+ <div class="panel"><div class="mute" style="margin-bottom:6px">Route (grey), enabled shots (dots), incident (red), selected (ring)</div><svg id="map" viewBox="0 0 400 400"></svg></div>
+ <div class="panel"><div class="mute">Render</div><div id="log">not started</div></div>
+</aside></main>
+<script>
+let plan,sel=null,dirty=false,dragId=null;
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const qs=s=>`start=${s.start}&dur=${s.dur}&speed=${s.speed}&audio=${s.audio}`;
+const fmt=s=>{s=Math.round(s);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+const dayIdx=()=>{const d=[...new Set(plan.segments.map(s=>s.day).filter(Boolean))].sort();return Object.fromEntries(d.map((x,i)=>[x,i+1]))};
+async function loadMusic(){const f=await (await fetch('/api/music')).json();const cur=plan.music||'';
+ $('#music').innerHTML='<option value="">no music</option>'+f.map(p=>`<option value="${esc(p)}" ${p===cur?'selected':''}>${esc(p.split('/').pop())}</option>`).join('')+(cur&&!f.includes(cur)?`<option value="${esc(cur)}" selected>${esc(cur.split('/').pop())}</option>`:'')}
+async function load(){plan=await (await fetch('/api/plan')).json();
+ $('#title').value=plan.title||'';$('#subtitle').value=plan.subtitle||'';$('#outro').value=plan.outro||'';$('#desc').value=plan.description||'';$('#trans').value=plan.transitions||'auto';$('#mvol').value=plan.music_volume??0.65;await loadMusic();$('#tlen').value=plan.transition_len||0.3;
+ const di=dayIdx();$('#fday').innerHTML='<option value="">All days</option>'+Object.entries(di).map(([d,i])=>`<option value="${d}">Day ${i} (${d})</option>`).join('');
+ draw()}
+function seg(id){return plan.segments.find(s=>s.id===id)}
+function mark(){dirty=true;$('#msg').textContent='unsaved changes'}
+function draw(){
+ const di=dayIdx(),fd=$('#fday').value,fk=$('#fkind').value,sd=$('#fdis').checked;let h='';
+ plan.segments.forEach((s,i)=>{
+  if((fd&&s.day!==fd)||(fk&&s.kind!==fk)||(!sd&&!s.enabled)||(onlyWarn&&!(s.warnings||[]).length))return;
+  const inc=!!s.incident;
+  h+=`<div class="seg d${di[s.day]||0} ${s.enabled?'':'off'} ${inc?'inc':''} ${sel===s.id?'sel':''} ${s.chapter?'chap':''}" data-id="${s.id}" draggable="true">
+  <div class="top"><span class="handle" title="drag to reorder">⠿</span>
+   <input type="checkbox" data-k="enabled" ${s.enabled?'checked':''} title="include in video">
+   <span class="name">#${s.id} ${esc(s.src.split('/').pop())}</span><span class="badge">${s.kind}</span>
+   ${inc?`<span class="badge" style="color:var(--bad);border-color:var(--bad)">INCIDENT</span>`:''}
+   <span class="mute">${s.time?esc(s.time.slice(5,16).replace('T',' ')):''} ${esc(s.place||'')}</span>
+   <span style="flex:1"></span><button data-a="up">↑</button><button data-a="down">↓</button><button data-a="prev">▶ preview</button></div>
+  ${(s.warnings||[]).map(w=>`<div class="warn">⚠ ${esc(w)}</div>`).join('')}
+  <div class="thumbs">${[0,1,2].map(k=>`<img loading="lazy" data-a="prev" src="/thumb/${s.id}/${k}?${qs(s)}" alt="">`).join('')}</div>
+  <div class="f">${s.kind==='photo'?'':`<label>start <input type="number" step="0.5" min="0" data-k="start" value="${s.start}">s</label>`}
+   <label>len <input type="number" step="0.5" min="1" data-k="dur" value="${s.dur}">s</label>
+   ${s.kind==='photo'?'':`<label>speed <select data-k="speed">${[0.5,1,1.5,2,3,4].map(v=>`<option ${v==s.speed?'selected':''}>${v}</option>`).join('')}</select></label>
+   <label>audio <input type="range" min="0" max="1" step="0.05" data-k="audio" value="${s.audio}"> <span>${s.audio}</span></label>`}
+   <label><input type="checkbox" data-a="inc" ${inc?'checked':''}> incident</label>
+   <label title="How this shot starts, overriding the default">transition in <select data-k="transition"><option value="" ${!s.transition?'selected':''}>default</option><option value="dip" ${s.transition==='dip'?'selected':''}>fade</option><option value="cut" ${s.transition==='cut'?'selected':''}>cut</option></select></label></div>
+  <div class="f"><input class="chap-in" data-k="chapter" placeholder="Chapter title (big title card)" value="${esc(s.chapter)}">
+   <input class="cap" data-k="caption" maxlength="45" placeholder="Caption (lower third)" value="${esc(s.caption)}"></div></div>`});
+ $('#list').innerHTML=h||'<p class="mute">Nothing matches the filters.</p>';stats();map()}
+let onlyWarn=false;
+$('#wcount').onclick=()=>{onlyWarn=!onlyWarn;draw()};
+function stats(){const w=plan.segments.filter(s=>(s.warnings||[]).length).length;$('#wcount').textContent=w?`⚠ ${w} with warnings${onlyWarn?' (showing only these)':''}`:'';
+ const on=plan.segments.filter(s=>s.enabled);$('#stats').textContent=`${on.length} shots · ${fmt(on.reduce((a,s)=>a+s.dur,0))} + title/outro`}
+function map(){
+ const t=plan.trip;if(!t||!t.route.length){$('#map').innerHTML='';return}
+ const P=t.route,cl=Math.cos(P[0][0]*Math.PI/180),xs=P.map(p=>p[1]*cl),ys=P.map(p=>-p[0]);
+ const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),sc=370/Math.max(x1-x0,y1-y0);
+ const X=lo=>15+(lo*cl-x0)*sc,Y=la=>15+(-la-y0)*sc,di=dayIdx();
+ let g=`<polyline fill="none" stroke="var(--line)" stroke-width="2" points="${P.map(p=>X(p[1])+','+Y(p[0])).join(' ')}"/>`;
+ const seen=new Set();t.stops.forEach(s=>{const k=s.name;if(seen.has(k))return;seen.add(k);g+=`<text x="${X(s.lon)+4}" y="${Y(s.lat)-3}" font-size="8" fill="var(--mute)">${esc(k.split(',')[0])}</text>`});
+ plan.segments.filter(s=>s.enabled&&s.lat!=null).forEach(s=>g+=`<circle cx="${X(s.lon)}" cy="${Y(s.lat)}" r="2.5" fill="var(--d${di[s.day]||4})" opacity=".8"/>`);
+ (t.incidents||[]).forEach(i=>g+=`<circle cx="${X(i.lon)}" cy="${Y(i.lat)}" r="6" fill="var(--bad)"/><text x="${X(i.lon)+8}" y="${Y(i.lat)+3}" font-size="9" fill="var(--bad)">${esc(i.categoryLabel)}</text>`);
+ const s=sel&&seg(sel);if(s&&s.lat!=null)g+=`<circle cx="${X(s.lon)}" cy="${Y(s.lat)}" r="8" fill="none" stroke="var(--acc)" stroke-width="3"/>`;
+ $('#map').innerHTML=g}
+function select(id){sel=id;const s=seg(id);document.querySelectorAll('.seg').forEach(e=>e.classList.toggle('sel',+e.dataset.id===id));map();return s}
+let pvId=null;
+async function prev(id){pvId=id;const s=select(id);$('#pcap').textContent=`#${s.id} ${s.place||''} — preparing preview…`;
+ const v=$('#pv'),im=$('#pimg');const u=`/preview/${id}?${qs(s)}`;
+ if(s.kind==='photo'){v.style.display='none';im.style.display='block';im.src=u;$('#pcap').textContent=`#${s.id} photo`;return}
+ im.style.display='none';v.style.display='block';v.src=u;v.oncanplay=()=>{$('#pcap').textContent=`#${s.id} ${s.place||''} ${s.caption?'— '+s.caption:''}`;v.play()}}
+$('#list').addEventListener('input',e=>{
+ const c=e.target.closest('.seg');if(!c||!e.target.dataset.k)return;const s=seg(+c.dataset.id),k=e.target.dataset.k;
+ s[k]=e.target.type==='checkbox'?e.target.checked:e.target.type==='number'||k==='speed'||k==='audio'?+e.target.value:e.target.value;
+ if(k==='audio')e.target.nextElementSibling.textContent=s.audio;
+ if(k==='enabled')c.classList.toggle('off',!s.enabled);stats();mark()});
+$('#list').addEventListener('change',e=>{if(['speed','dur','start'].includes(e.target.dataset.k)){const c=e.target.closest('.seg');
+ draw();const id=+e.target.closest('.seg').dataset.id;if(id===pvId)prev(id)}});
+$('#list').addEventListener('click',e=>{
+ const c=e.target.closest('.seg');if(!c)return;const id=+c.dataset.id,a=e.target.dataset.a;
+ if(a==='prev'){prev(id)}else if(a==='up'||a==='down'){const i=plan.segments.findIndex(s=>s.id===id),j=i+(a==='up'?-1:1);
+  if(j>=0&&j<plan.segments.length){[plan.segments[i],plan.segments[j]]=[plan.segments[j],plan.segments[i]];mark();draw()}}
+ else if(a==='inc'){const s=seg(id);if(e.target.checked){s.incident={category:'Incident',notes:'',place:s.place||''};s.audio=1}else delete s.incident;mark();draw()}
+ else if(!e.target.closest('input,button,select'))select(id)});
+const L=$('#list');
+L.addEventListener('dragstart',e=>{const c=e.target.closest('.seg');if(c)dragId=+c.dataset.id});
+L.addEventListener('dragover',e=>e.preventDefault());
+L.addEventListener('drop',e=>{e.preventDefault();const c=e.target.closest('.seg');if(!c||dragId==null)return;
+ const to=+c.dataset.id;if(to===dragId)return;const i=plan.segments.findIndex(s=>s.id===dragId),j=plan.segments.findIndex(s=>s.id===to),[m]=plan.segments.splice(i,1);
+ plan.segments.splice(plan.segments.findIndex(s=>s.id===to)+(i<j?1:0),0,m);dragId=null;mark();draw()});
+['fday','fkind','fdis'].forEach(i=>$('#'+i).addEventListener('change',draw));
+['title','subtitle','outro','desc','trans','tlen','music','mvol'].forEach(i=>$('#'+i).addEventListener('input',mark));
+async function save(){plan.title=$('#title').value;plan.subtitle=$('#subtitle').value;plan.outro=$('#outro').value;plan.description=$('#desc').value;plan.transitions=$('#trans').value;plan.music=$('#music').value||null;plan.music_volume=+$('#mvol').value||0.65;plan.transition_len=+$('#tlen').value||0.3;
+ const {trip,...rest}=plan;const r=await fetch('/api/plan',{method:'POST',body:JSON.stringify({...rest})});
+ if(r.ok){dirty=false;$('#msg').textContent='saved '+new Date().toLocaleTimeString()}else $('#msg').textContent='save failed'}
+$('#save').onclick=save;
+$('#render').onclick=async()=>{await save();await fetch('/api/render',{method:'POST',body:'{}'});poll()};
+async function poll(){const r=await (await fetch('/api/render')).json();$('#log').textContent=r.log.join('\n')||r.state;$('#log').scrollTop=1e9;
+ if(r.state==='running')setTimeout(poll,2000);else $('#msg').textContent='render '+r.state}
+addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
+load();
+</script></body></html>
