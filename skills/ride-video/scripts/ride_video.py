@@ -27,6 +27,7 @@ FONT_CANDIDATES = [
     'C:/Windows/Fonts/arialbd.ttf',
 ]
 WORKDIR = '_ridevideo'
+DEFAULT_OUTRO_IMAGE = Path(__file__).resolve().parent.parent / 'assets' / 'adventure-timeline-splash.png'
 
 
 def sh(cmd, **kw):
@@ -362,6 +363,7 @@ def build_plan(root, work, a):
     plan = dict(title=a.title or root.name, subtitle=a.subtitle or '', description=a.description or '',
                 outro=a.outro, music=str(Path(a.music).expanduser().resolve()) if a.music else None,
                 width=w, height=h, fps=30, tags=[], segments=segs)
+    if a.outro_image: plan['outro_image'] = a.outro_image   # otherwise the bundled default applies at render time
     return plan
 
 
@@ -550,11 +552,27 @@ def render(root, work, plan, args):
     outro = seg_dir / 'outro.mp4'
     W, H, F = plan['width'], plan['height'], plan['fps']
     otxt = write_txt(work, 'outro', plan.get('outro') or 'Thanks for riding along')
-    r = subprocess.run(['ffmpeg', '-y', '-v', 'error', '-f', 'lavfi', '-i', f'color=c=0x101010:s={W}x{H}:d=4:r={F}',
-                        '-f', 'lavfi', '-t', '4', '-i', 'anullsrc=r=48000:cl=stereo', '-vf',
-                        drawtext(otxt, int(H * 0.07), '(w-text_w)/2', '(h-text_h)/2', 0.3, 3.8) + ',format=yuv420p',
-                        *enc, '-c:a', 'aac', '-b:a', '192k', '-t', '4', '-pix_fmt', 'yuv420p', str(outro)],
-                       cwd=work, capture_output=True, text=True)
+    # End card: plan['outro_image'] (path, relative to the working folder or absolute) shown centred on a dark
+    # gradient with the outro text underneath. Default is the Adventure Timeline splash bundled in assets/;
+    # set outro_image to "none" (or --outro-image none) for a plain text card.
+    img = plan.get('outro_image', str(DEFAULT_OUTRO_IMAGE))
+    img = None if str(img).lower() in ('', 'none', 'false') else (root / img)
+    if img and img.exists():
+        ow = f"fade=t=in:st=0:d=0.5,fade=t=out:st=3.5:d=0.5"
+        small = drawtext(otxt, int(H * 0.035), '(w-text_w)/2', 'h*0.925', 0.4, 3.7)
+        fc = (f"[1:v]format=rgba,scale=-2:{int(H * 0.8)}[im];[0:v][im]overlay=(W-w)/2:(H-h)/2:format=auto,"
+              f"{small},{ow},format=yuv420p[v]")
+        cmd = ['ffmpeg', '-y', '-v', 'error',
+               '-f', 'lavfi', '-i', f'gradients=s={W}x{H}:d=4:r={F}:c0=0x0F2036:c1=0x16110B:x0=0:y0=0:x1=0:y1={H}:speed=0.00001',
+               '-loop', '1', '-framerate', str(F), '-t', '4', '-i', str(img),
+               '-f', 'lavfi', '-t', '4', '-i', 'anullsrc=r=48000:cl=stereo',
+               '-filter_complex', fc, '-map', '[v]', '-map', '2:a']
+    else:
+        cmd = ['ffmpeg', '-y', '-v', 'error', '-f', 'lavfi', '-i', f'color=c=0x101010:s={W}x{H}:d=4:r={F}',
+               '-f', 'lavfi', '-t', '4', '-i', 'anullsrc=r=48000:cl=stereo', '-vf',
+               drawtext(otxt, int(H * 0.07), '(w-text_w)/2', '(h-text_h)/2', 0.3, 3.8) + ',format=yuv420p']
+    r = subprocess.run([*cmd, *enc, '-c:a', 'aac', '-b:a', '192k', '-t', '4', '-r', str(F), '-g', str(F * 2),
+                        '-pix_fmt', 'yuv420p', str(outro)], cwd=work, capture_output=True, text=True)
     if r.returncode:
         sys.exit(r.stderr[-1500:])
     files.append(outro)
@@ -702,6 +720,7 @@ def main():
     ap.add_argument('--subtitle')
     ap.add_argument('--description')
     ap.add_argument('--outro', default='Thanks for riding along - like & subscribe')
+    ap.add_argument('--outro-image', help="end-card image (default: bundled Adventure Timeline splash; 'none' for a plain text card)")
     ap.add_argument('--music', help='audio file to use as background music')
     ap.add_argument('--target', type=int, default=420, help='target length in seconds (default 420 = 7 min)')
     ap.add_argument('--res', type=int, default=1080, choices=[1080, 2160])

@@ -14,6 +14,7 @@ also run the scripts by hand without Claude.
 | `SKILL.md` | Instructions Claude follows (the skill itself) |
 | `scripts/ride_video.py` | Scan, plan, contact sheets, render, optional YouTube upload |
 | `scripts/trip_merge.py` | Merge an Adventure Timeline trip export into the plan (places, days, incidents, warnings) |
+| `assets/` | The default end-card image (Adventure Timeline splash) |
 | `scripts/editor.py` + `editor.html` | Local web editor for the plan: reorder, trim, speed, captions, chapters, transitions, music |
 
 > **Status:** developed and tested on Linux (Ubuntu, NVIDIA GPU, ffmpeg 6.1, Python 3.12). The Windows and
@@ -143,6 +144,13 @@ Useful `plan` options: `--res 2160` for 4K, `--no-timelapse`, `--max-speed 3`, `
 Useful `plan.json` settings: `output_dir` (e.g. `".."` copies the finished video, thumbnail and chapters next to
 your media as `<title>.mp4`), `output_name`, `transitions` (`auto` / `all` / `none`), `transition_len`,
 `music_volume` (default 0.65), `music_duck` (level around incidents, default 0.1).
+`outro_image` sets the end card (see below); `outro` is the text on it.
+
+### End card
+
+Every video ends with a 4-second card: the Adventure Timeline splash (`assets/adventure-timeline-splash.png`,
+bundled) centred on the app's dark gradient, with the `outro` text underneath. Use your own image with
+`plan --outro-image path/to/logo.png` (or `outro_image` in `plan.json`), or `none` for a plain text card.
 
 ## The visual editor
 

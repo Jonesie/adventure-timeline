@@ -80,6 +80,12 @@ Mix: music is held at a constant level; it is only faded down (to `music_duck`, 
 `plan.output_dir` (relative to the working folder, e.g. `..`) makes render copy the finished video, thumbnail and
 chapters next to the original media as `<title>.mp4` etc.
 
+## End card
+Every video ends with a 4 s card: the Adventure Timeline splash (`assets/adventure-timeline-splash.png`, bundled
+with the skill) centred on the app's dark gradient, with the `outro` text small underneath. It is the default for all
+videos this skill generates. Override with `plan.outro_image` (a path, relative to the working folder or absolute)
+or `ride_video.py plan --outro-image <file>`; use `"none"` for a plain text card.
+
 ## Workflow
 
 1. **Plan** (analyses audio level + motion per second, picks evenly spread highlights, flags audio spikes as
