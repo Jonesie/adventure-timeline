@@ -217,9 +217,11 @@ object TripExport {
                 w.endArray()
 
                 // --- incidents ---
+                val incidentNumbers = trip.incidents.sortedBy { it.timestamp }.mapIndexed { i, inc -> inc.id to i + 1L }.toMap()
                 w.name("incidents").beginArray()
-                trip.incidents.sortedBy { it.timestamp }.forEach { inc ->
+                trip.incidents.sortedBy { it.timestamp }.forEachIndexed { index, inc ->
                     w.beginObject()
+                    w.put("number", index + 1L)
                     w.putTime("time", inc.timestamp)
                     w.put("category", inc.category.name)
                     w.put("categoryLabel", inc.category.label())
@@ -227,8 +229,15 @@ object TripExport {
                     w.put("reason", inc.reason)
                     w.put("notes", inc.notes)
                     w.put("leg", legIndexOf(inc.legId))
-                    w.put("lat", inc.lat); w.put("lon", inc.lon)
-                    w.put("place", placeFor(inc.lat, inc.lon))
+                    // Where it happened, in its own right: a video of it can run well before and after the
+                    // moment itself. Fall back to where the trail was at that time if no position was saved.
+                    val own = hasPosition(inc.lat, inc.lon)
+                    val from = if (own) null else trailPointAt(trail, inc.timestamp)
+                    val lat = if (own) inc.lat else from?.lat
+                    val lon = if (own) inc.lon else from?.lon
+                    w.put("lat", lat); w.put("lon", lon)
+                    if (lat != null) w.put("locationSource", if (own) "incident" else "route")
+                    w.put("place", placeFor(lat, lon))
                     w.name("involvesMe").value(inc.involvesMe)
                     w.name("people").beginArray(); dao.getIncidentPeopleNames(inc.id).forEach { w.value(it) }; w.endArray()
                     w.name("mediaFiles").beginArray()
@@ -258,6 +267,9 @@ object TripExport {
                     w.put("place", placeFor(lat, lon))
                     w.put("leg", legIndexOf(m.legId))
                     w.name("incident").value(m.incidentId != null)
+                    m.incidentId?.let { id ->
+                        incidentNumbers[id]?.let { w.put("incidentNumber", it) }
+                    }
                     if (m.id in missing) w.name("missing").value(true)
                     w.endObject()
                 }
@@ -286,7 +298,9 @@ object TripExport {
                 readable.forEachIndexed { index, e ->
                     onProgress("Adding media… ${index + 1} of ${readable.size}")
                     val input = resolver.openInputStream(Uri.parse(e.item.uri)) ?: return@forEachIndexed
-                    zip.putNextEntry(ZipEntry(MEDIA_DIR + e.name))
+                    // Stamp the entry with when it was captured, so unzipping gives files with the capture
+                    // date rather than the export date (editors sort and group by file date).
+                    zip.putNextEntry(ZipEntry(MEDIA_DIR + e.name).apply { time = e.item.timestamp })
                     input.use { it.copyTo(zip) }
                     zip.closeEntry()
                     written++
