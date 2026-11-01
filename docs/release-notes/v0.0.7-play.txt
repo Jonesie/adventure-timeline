@@ -1,0 +1,2 @@
+New: Settings > Check for updates, which looks up the latest release only when you tap it.
+Also: export a trip as a zip for video editing. On a trip's Share tab, get one file with the trip's legs, route, stops, place names, notes and incidents (each with its own location) as JSON, plus the photos in the order taken, dated when taken. Backups now include your incident reasons list, and the dark map is lighter, blue-grey, with brighter place names.
