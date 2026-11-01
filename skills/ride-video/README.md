@@ -158,6 +158,8 @@ bundled) centred on the app's dark gradient, with the `outro` text underneath. U
 python3 skills/ride-video/scripts/editor.py "My Ride"          # then open http://127.0.0.1:8765/
 ```
 
+![The ride-video editor: shot cards with thumbnails, captions and transitions on the left; preview, route map and render log on the right](docs/editor.png)
+
 Reorder (drag or arrows), switch shots on or off, trim, set speed and audio level, edit chapter titles and
 captions, flag incidents, choose transitions and music, preview any shot with your current unsaved settings, and see
 it on the route map. **Save & render** runs the render. It only listens on `127.0.0.1` and makes no external
