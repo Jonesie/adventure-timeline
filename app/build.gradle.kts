@@ -6,7 +6,14 @@ plugins {
 }
 
 // Versions come from the release workflow (-PversionName / -PversionCode, derived from the git tag).
-val appVersionName = (findProperty("versionName") as String?) ?: "0.1"
+// A local build has neither, so it shows the latest tag plus how far past it the checkout is
+// (e.g. 0.0.6-3-gd5de5c2) rather than a number that is never updated.
+val gitVersion: String? = runCatching {
+    val process = ProcessBuilder("git", "describe", "--tags", "--match", "v*", "--always")
+        .directory(rootDir).redirectErrorStream(true).start()
+    process.inputStream.bufferedReader().readText().trim().removePrefix("v").takeIf { process.waitFor() == 0 && it.isNotBlank() }
+}.getOrNull()
+val appVersionName = (findProperty("versionName") as String?) ?: gitVersion ?: "0.1"
 val appVersionCode = (findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
 
 // Release signing is read from the environment so no key ever lives in the repository.
