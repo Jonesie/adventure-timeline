@@ -30,6 +30,7 @@ import net.jonesie.traveldiary.data.Trip
 import net.jonesie.traveldiary.data.TripCompanionCrossRef
 import net.jonesie.traveldiary.data.TripDetail
 import net.jonesie.traveldiary.data.TravelDiaryDatabase
+import androidx.room.withTransaction
 import net.jonesie.traveldiary.data.RoutePoint
 import net.jonesie.traveldiary.util.ActivityLeg
 import net.jonesie.traveldiary.util.NEARBY_RADIUS_DEGREES_SQUARED
@@ -478,6 +479,22 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
     fun setLegDetails(legIds: List<Long>, type: TransportType, difficulty: Int, enjoyment: Int) {
         viewModelScope.launch {
             dao.updateLegDetails(legIds, type, difficulty.coerceIn(0, 5), enjoyment.coerceIn(0, 5))
+        }
+    }
+
+    /**
+     * Removes the legs and the stretch of recorded route under each, leaving a gap in the trail. The trip
+     * itself stays; if that was its last leg, the rest of its trail goes too, since nothing explains it any more.
+     */
+    fun deleteLegs(legIds: List<Long>) {
+        viewModelScope.launch {
+            val db = TravelDiaryDatabase.get(getApplication())
+            db.withTransaction {
+                val legs = dao.getLegsByIds(legIds)
+                legs.forEach { leg -> dao.deleteRoutePointsBetween(leg.tripId, leg.startTime, leg.endTime ?: leg.startTime) }
+                dao.deleteLegs(legIds)
+                legs.map { it.tripId }.distinct().filter { dao.countLegs(it) == 0 }.forEach { dao.deleteRoutePointsForTrip(it) }
+            }
         }
     }
 

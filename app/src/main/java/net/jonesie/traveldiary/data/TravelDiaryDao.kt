@@ -57,6 +57,19 @@ interface TravelDiaryDao {
     )
     suspend fun updateLegDetails(legIds: List<Long>, type: TransportType, difficulty: Int, enjoyment: Int)
 
+    @Query("SELECT * FROM legs WHERE id IN (:legIds)")
+    suspend fun getLegsByIds(legIds: List<Long>): List<Leg>
+
+    /** Photos, notes and incidents that pointed at these legs keep their place on the trip and just lose the leg link (ON DELETE SET NULL). */
+    @Query("DELETE FROM legs WHERE id IN (:legIds)")
+    suspend fun deleteLegs(legIds: List<Long>)
+
+    @Query("SELECT COUNT(*) FROM legs WHERE tripId = :tripId")
+    suspend fun countLegs(tripId: Long): Int
+
+    @Query("DELETE FROM route_points WHERE tripId = :tripId AND timestamp BETWEEN :from AND :to")
+    suspend fun deleteRoutePointsBetween(tripId: Long, from: Long, to: Long)
+
     @Query("UPDATE legs SET transportType = :to, transportEdited = 1 WHERE tripId = :tripId")
     suspend fun updateAllTripLegsTransport(tripId: Long, to: TransportType)
 

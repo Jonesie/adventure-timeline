@@ -116,6 +116,7 @@ fun TripDetailScreen(
     var overflowExpanded by remember { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var editingGroup by remember { mutableStateOf<LegGroup?>(null) }
+    var deletingGroup by remember { mutableStateOf<LegGroup?>(null) }
     var showBulkTransport by remember { mutableStateOf(false) }
     // Quietly index gallery photo locations, then count any along this route that aren't in a trip yet.
     var nearbyCount by remember { mutableStateOf<Int?>(null) }
@@ -213,7 +214,35 @@ fun TripDetailScreen(
                     viewModel.setLegDetails(group.legIds, type, difficulty, enjoyment)
                     editingGroup = null
                 },
+                onDelete = {
+                    deletingGroup = group
+                    editingGroup = null
+                },
                 onDismiss = { editingGroup = null }
+            )
+        }
+        deletingGroup?.let { group ->
+            val what = if (group.count > 1) "these ${group.count} legs" else "this leg"
+            val lastLegs = trip.legs.all { it.id in group.legIds }
+            AlertDialog(
+                onDismissRequest = { deletingGroup = null },
+                title = { Text("Delete ${if (group.count > 1) "legs" else "leg"}?") },
+                text = {
+                    Text(
+                        "${group.originName} → ${group.destinationName}\n\n" +
+                            "Deletes $what from the trip, and the route recorded during ${if (group.count > 1) "them" else "it"}, so the map will have a gap there. " +
+                            (if (lastLegs) "This is the trip's last leg, so the whole route goes. The trip itself stays. " else "") +
+                            "Photos, notes and incidents stay on the trip; they just aren't tied to a leg any more. " +
+                            "Re-importing the same Timeline file would bring it all back."
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.deleteLegs(group.legIds)
+                        deletingGroup = null
+                    }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = { TextButton(onClick = { deletingGroup = null }) { Text("Cancel") } }
             )
         }
         if (showBulkTransport) {
@@ -462,7 +491,7 @@ private fun SectionHeader(text: String) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun LegEditDialog(group: LegGroup, onSave: (TransportType, Int, Int) -> Unit, onDismiss: () -> Unit) {
+private fun LegEditDialog(group: LegGroup, onSave: (TransportType, Int, Int) -> Unit, onDelete: () -> Unit, onDismiss: () -> Unit) {
     var transport by remember(group) { mutableStateOf(group.transportType) }
     var difficulty by remember(group) { mutableIntStateOf(group.difficulty) }
     var enjoyment by remember(group) { mutableIntStateOf(group.enjoyment) }
@@ -512,6 +541,10 @@ private fun LegEditDialog(group: LegGroup, onSave: (TransportType, Int, Int) -> 
                                 .padding(6.dp)
                         )
                     }
+                }
+
+                TextButton(onClick = onDelete, modifier = Modifier.padding(top = 12.dp)) {
+                    Text(if (group.count > 1) "Delete these ${group.count} legs" else "Delete this leg", color = MaterialTheme.colorScheme.error)
                 }
             }
         },
