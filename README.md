@@ -64,9 +64,13 @@ name is blurred.*
   Media tab suggests unassigned photos taken along the route. A home area (found from where trips
   start and end, or set in Settings) is left out so photos taken around home aren't suggested for every trip.
 - **Share tab** on each trip: compose a title, the framed route map, a caption, companions (optional),
-  notes and up to 7 photos, then share it as a high-resolution picture or a PDF through the phone's
-  share sheet. The route is redrawn sharp over the map tiles so it stays readable when zoomed. The home area can be hidden from the shared map.
-  The same tab can also export the trip as a **zip for video editing**: `trip.json` (legs with distances, the full route,
+  notes and up to 7 photos, then share it through the phone's share sheet as a **post** (a written
+  caption with the trip's dates, length, transport and route, plus the map and each photo as separate pictures),
+  a single high-resolution picture, or a PDF. The post text can be edited, and is copied to the clipboard
+  because Facebook and Instagram ignore text sent from another app. The route is redrawn sharp over the map tiles so it stays readable when zoomed. The home area can be hidden from the shared map.
+  The map on the Share tab can be collapsed to leave more room; it is still shared as you framed it.
+  Everything shared ends with a footer linking to the project website (with the app icon on a picture or PDF); a switch turns it off.
+- **Export trip data** (the trip screen's ⋮ menu): packs the trip as a **zip for video editing**: `trip.json` (legs with distances, the full route,
   stops, place names, notes, incidents, and where and when each photo was taken) plus the photos (optionally videos and voice
   notes), named in the order they were taken, and a picture of the route map.
 - **Themes**: light, dark, or follow the system (Settings → Appearance). Map tiles are inverted in dark mode.

@@ -22,6 +22,8 @@ import java.text.DateFormat
 import java.util.Date
 
 enum class ShareFormat(val label: String, val mimeType: String, val extension: String) {
+    /** Written caption plus the map and photos as separate pictures; see [PostComposer]. */
+    POST("Post", "image/jpeg", "jpg"),
     IMAGE("Picture", "image/jpeg", "jpg"),
     PDF("PDF", "application/pdf", "pdf")
 }
@@ -36,7 +38,8 @@ data class ShareOptions(
     val includeTripNotes: Boolean,
     val includeImpressions: Boolean,
     val photos: List<MediaItem>,
-    val format: ShareFormat
+    val format: ShareFormat,
+    val includeFooter: Boolean = true
 )
 
 class ShareResult(val file: File, val text: String)
@@ -88,6 +91,37 @@ object ShareComposer {
             canvas.save()
             canvas.translate(x, y)
             layout.draw(canvas)
+            canvas.restore()
+        }
+    }
+
+    /** "Made with Adventure Timeline" and its link beside the app icon, closing the picture or PDF. */
+    private class FooterBlock(val icon: Bitmap?) : Block() {
+        private val iconSize = 112f
+        private val gap = 28f
+        private fun textWidth(u: Float, width: Float) = if (icon != null) width - (iconSize + gap) * u else width
+        private fun title(u: Float, width: Float) = layoutFor(AppLinks.FOOTER_TITLE, textPaint(34f * u, INK, bold = true), textWidth(u, width))
+        private fun link(u: Float, width: Float) = layoutFor(AppLinks.WEBSITE, textPaint(28f * u, MUTED), textWidth(u, width))
+        private fun textHeight(u: Float, width: Float) = title(u, width).height + 4f * u + link(u, width).height
+
+        override fun height(u: Float, width: Float) =
+            maxOf(if (icon != null) iconSize * u else 0f, textHeight(u, width))
+
+        override fun draw(canvas: Canvas, u: Float, x: Float, y: Float, width: Float) {
+            val h = height(u, width)
+            var left = x
+            if (icon != null) {
+                val top = y + (h - iconSize * u) / 2f
+                drawRounded(canvas, icon, RectF(x, top, x + iconSize * u, top + iconSize * u), 24f * u, crop = true)
+                left += (iconSize + gap) * u
+            }
+            val t = title(u, width)
+            val l = link(u, width)
+            canvas.save()
+            canvas.translate(left, y + (h - textHeight(u, width)) / 2f)
+            t.draw(canvas)
+            canvas.translate(0f, t.height + 4f * u)
+            l.draw(canvas)
             canvas.restore()
         }
     }
@@ -213,19 +247,28 @@ object ShareComposer {
                 if (bitmaps.size == 1) blocks += PhotoRowBlock(bitmaps, 1)
                 else bitmaps.chunked(2).forEach { blocks += PhotoRowBlock(it, 2) }
             }
-            blocks += SpacerBlock(10f)
-            blocks += TextBlock("Made with Adventure Timeline", 26f, MUTED, gapBelow = 0f)
+            if (options.includeFooter) {
+                blocks += SpacerBlock(18f)
+                blocks += FooterBlock(loadAppIcon(context))
+                plain.append("\n\n").append(AppLinks.footerText())
+            }
 
             val dir = File(context.cacheDir, "share").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
             val safeName = t.title.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').take(40).ifEmpty { "trip" }
             val file = File(dir, "$safeName.${options.format.extension}")
             when (options.format) {
-                ShareFormat.IMAGE -> writeImage(file, blocks)
+                ShareFormat.IMAGE, ShareFormat.POST -> writeImage(file, blocks)
                 ShareFormat.PDF -> writePdf(file, blocks)
             }
             bitmaps.forEach { it.recycle() }
             ShareResult(file, plain.toString())
         }
+
+    /** The app's own artwork, a little smaller than the file so it costs nothing to draw. */
+    private fun loadAppIcon(context: Context): Bitmap? = runCatching {
+        val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
+        android.graphics.BitmapFactory.decodeResource(context.resources, net.jonesie.traveldiary.R.drawable.splash_icon, options)
+    }.getOrNull()
 
     private fun writeImage(file: File, blocks: List<Block>) {
         val width = IMAGE_WIDTH
@@ -272,7 +315,7 @@ object ShareComposer {
     }
 
     /** Decodes a photo with its EXIF rotation applied, no longer than [maxSide] px on its long edge. */
-    private fun loadPhoto(context: Context, item: MediaItem, maxSide: Int): Bitmap? = runCatching {
+    internal fun loadPhoto(context: Context, item: MediaItem, maxSide: Int): Bitmap? = runCatching {
         val uri = android.net.Uri.parse(item.uri)
         if (android.os.Build.VERSION.SDK_INT >= 28) {
             // ImageDecoder applies the orientation recorded in the file for us.

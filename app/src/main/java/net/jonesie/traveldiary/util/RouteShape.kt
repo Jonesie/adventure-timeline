@@ -67,6 +67,10 @@ object RouteShape {
                 trail.count { it.timestamp in leg.startTime..leg.endTime!! } < 3
         }
 
+    /** Length of the recorded route, not counting the straight jumps across [isGap] stretches nobody tracked. */
+    fun trailKm(trail: List<RoutePoint>): Double =
+        splitAtGaps(trail).sumOf { piece -> piece.zipWithNext { a, b -> distanceKm(a.lat, a.lon, b.lat, b.lon) }.sum() }
+
     fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)

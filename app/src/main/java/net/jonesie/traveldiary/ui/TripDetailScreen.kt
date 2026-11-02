@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AddRoad
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsBike
@@ -107,7 +108,8 @@ fun TripDetailScreen(
     onEditIncident: (Long) -> Unit,
     onOpenIncidentMedia: (incidentId: Long, index: Int) -> Unit,
     onEdit: () -> Unit,
-    onOpenMap: () -> Unit
+    onOpenMap: () -> Unit,
+    onExportData: () -> Unit
 ) {
     val detail by remember(tripId) { viewModel.tripDetail(tripId) }.collectAsState(initial = null)
     val trip = detail
@@ -172,6 +174,11 @@ fun TripDetailScreen(
                         text = { Text("Edit trip") },
                         leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                         onClick = { overflowExpanded = false; onEdit() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Export trip data…") },
+                        leadingIcon = { Icon(Icons.Filled.Archive, contentDescription = null) },
+                        onClick = { overflowExpanded = false; onExportData() }
                     )
                     DropdownMenuItem(
                         text = { Text("Change transport…") },

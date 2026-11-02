@@ -55,6 +55,7 @@ import net.jonesie.traveldiary.ui.AppTheme
 import net.jonesie.traveldiary.ui.SettingsScreen
 import net.jonesie.traveldiary.ui.StatsScreen
 import net.jonesie.traveldiary.ui.TravelDiaryViewModel
+import net.jonesie.traveldiary.ui.TripDataExportScreen
 import net.jonesie.traveldiary.ui.TripDetailScreen
 import net.jonesie.traveldiary.ui.TripListScreen
 import net.jonesie.traveldiary.util.LocationHelper
@@ -340,8 +341,17 @@ private fun TravelDiaryApp() {
                 onEditIncident = { id -> navController.navigate("incident?incidentId=$id") },
                 onOpenIncidentMedia = { id, index -> navController.navigate("incidentMedia/$id/$index") },
                 onEdit = { navController.navigate("tripDetail/$tripId/edit") },
-                onOpenMap = { navController.navigate("tripDetail/$tripId/map") }
+                onOpenMap = { navController.navigate("tripDetail/$tripId/map") },
+                onExportData = { navController.navigate("tripDetail/$tripId/export") }
             )
+        }
+
+        composable(
+            "tripDetail/{tripId}/export",
+            arguments = listOf(navArgument("tripId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val tripId = backStackEntry.arguments?.getLong("tripId") ?: return@composable
+            TripDataExportScreen(tripId = tripId, viewModel = viewModel, onBack = { navController.popBackStack() })
         }
 
         composable(

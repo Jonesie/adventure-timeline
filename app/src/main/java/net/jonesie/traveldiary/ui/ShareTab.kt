@@ -1,8 +1,11 @@
 package net.jonesie.traveldiary.ui
 
 import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,10 +17,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,12 +40,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -48,12 +56,14 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import net.jonesie.traveldiary.data.MediaType
 import net.jonesie.traveldiary.data.TripDetail
+import net.jonesie.traveldiary.util.PostComposer
+import net.jonesie.traveldiary.util.PostOptions
+import net.jonesie.traveldiary.util.RouteShape
 import net.jonesie.traveldiary.util.ShareComposer
 import net.jonesie.traveldiary.util.ShareFormat
 import net.jonesie.traveldiary.util.ShareOptions
-import net.jonesie.traveldiary.util.TripExport
-import net.jonesie.traveldiary.util.TripExportOptions
 import org.osmdroid.views.MapView
+import java.io.File
 
 /** Keeps a shared picture or PDF a sensible length. */
 private const val MAX_SHARE_PHOTOS = 7
@@ -75,13 +85,22 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
     var message by remember { mutableStateOf("") }
     var mapExport by remember { mutableStateOf<MapExport?>(null) }
     var includeMap by remember { mutableStateOf(true) }
+    var mapShown by rememberSaveable { mutableStateOf(true) }
     var includeDates by remember { mutableStateOf(true) }
     var includeRating by remember { mutableStateOf(true) }
     var includeCompanions by remember { mutableStateOf(false) }
     var includeTripNotes by remember { mutableStateOf(trip.trip.notes.isNotBlank()) }
     var includeImpressions by remember { mutableStateOf(false) }
+    var includeFooter by remember { mutableStateOf(true) }
     var selectedPhotos by remember { mutableStateOf<Set<Long>>(emptySet()) }
-    var format by remember { mutableStateOf(ShareFormat.IMAGE) }
+    var format by remember { mutableStateOf(ShareFormat.POST) }
+    var includeRoute by remember { mutableStateOf(true) }
+    // Null while the written post is still being built from the switches; set once it's been edited by hand.
+    var editedPost by remember { mutableStateOf<String?>(null) }
+    var routeKm by remember { mutableStateOf<Double?>(null) }
+    LaunchedEffect(tripId, trip.legs) {
+        routeKm = RouteShape.trailKm(viewModel.routePointsFor(tripId)).takeIf { it > 0 }
+    }
     var busy by remember { mutableStateOf(false) }
     val homeSettings by viewModel.homeSettings.collectAsState()
     var homeCentre by remember { mutableStateOf<Pair<Double, Double>?>(null) }
@@ -89,24 +108,43 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
     var hideHome by remember { mutableStateOf(true) }
 
     val photos = remember(trip.media) { trip.sortedMedia().filter { it.type == MediaType.PHOTO } }
+    val generatedPost = remember(trip, title, message, includeDates, includeRating, includeRoute, includeCompanions, includeTripNotes, includeImpressions, includeFooter, routeKm) {
+        PostComposer.buildText(
+            trip,
+            PostOptions(title, message, includeDates, includeRating, includeRoute, includeCompanions, includeTripNotes, includeImpressions, includeFooter),
+            routeKm
+        )
+    }
+    val postText = editedPost ?: generatedPost
 
-    val videoCount = trip.media.count { it.type == MediaType.VIDEO }
-    val audioCount = trip.media.count { it.type == MediaType.AUDIO }
-    var exportPhotos by remember { mutableStateOf(true) }
-    var exportVideos by remember { mutableStateOf(false) }
-    var exportAudio by remember { mutableStateOf(false) }
-    var exportMap by remember { mutableStateOf(true) }
-    var exportProgress by remember { mutableStateOf<String?>(null) }
 
     if (includeMap) {
-        // Not inside the scrolling list below, so the map's own pan/zoom gestures work.
-        RouteMap(
-            tripId, viewModel, trip.legs,
-            modifier = Modifier.fillMaxWidth().height(280.dp).padding(top = 8.dp),
-            media = trip.sortedMedia(),
-            onMapView = { mapView = it },
-            onMapExport = { mapExport = it }
-        )
+        val mapHeight by animateDpAsState(if (mapShown) 280.dp else 0.dp, label = "mapHeight")
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { mapShown = !mapShown }.padding(top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                if (mapShown) "Map" else "Map (hidden, still shared as you framed it)",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                if (mapShown) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (mapShown) "Hide map" else "Show map"
+            )
+        }
+        // Not inside the scrolling list below, so the map's own pan/zoom gestures work. When hidden it stays laid
+        // out at full size and is only clipped away, so the picture that gets shared keeps the framing you chose.
+        Box(modifier = Modifier.fillMaxWidth().height(mapHeight).clipToBounds()) {
+            RouteMap(
+                tripId, viewModel, trip.legs,
+                modifier = Modifier.wrapContentHeight(Alignment.Top, unbounded = true).fillMaxWidth().height(280.dp).padding(top = 8.dp),
+                media = trip.sortedMedia(),
+                onMapView = { mapView = it },
+                onMapExport = { mapExport = it }
+            )
+        }
     }
 
     LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -122,19 +160,23 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
             OutlinedTextField(
                 value = message,
                 onValueChange = { message = it },
-                label = { Text("Message (shown under the map)") },
+                label = { Text(if (format == ShareFormat.POST) "Message (goes in the post)" else "Message (shown under the map)") },
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
             )
         }
-        item { SwitchRow("Map (as shown above)", includeMap) { includeMap = it } }
+        item { SwitchRow("Map (as you framed it)", includeMap) { includeMap = it } }
         if (homeCentre != null) {
             item { SwitchRow("Hide my home area (${homeSettings.radiusKm} km) from the map", hideHome) { hideHome = it } }
         }
         item { SwitchRow("Dates", includeDates) { includeDates = it } }
         item { SwitchRow("Star rating", includeRating) { includeRating = it } }
+        if (format == ShareFormat.POST) {
+            item { SwitchRow("Route summary (distance, transport, places)", includeRoute) { includeRoute = it } }
+        }
         item { SwitchRow("Companions" + if (trip.companions.isEmpty()) " (none logged)" else "", includeCompanions) { includeCompanions = it } }
         item { SwitchRow("Trip notes" + if (trip.trip.notes.isBlank()) " (none)" else "", includeTripNotes) { includeTripNotes = it } }
         item { SwitchRow("Impressions (${trip.impressions.size})", includeImpressions) { includeImpressions = it } }
+        item { SwitchRow("Adventure Timeline footer (with link)", includeFooter) { includeFooter = it } }
         item {
             Row(
                 modifier = Modifier.padding(top = 8.dp),
@@ -144,6 +186,26 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                 Text("Share as", style = MaterialTheme.typography.labelLarge)
                 ShareFormat.entries.forEach { f ->
                     FilterChip(selected = format == f, onClick = { format = f }, label = { Text(f.label) })
+                }
+            }
+        }
+        if (format == ShareFormat.POST) {
+            item {
+                OutlinedTextField(
+                    value = postText,
+                    onValueChange = { editedPost = it },
+                    label = { Text("Post text") },
+                    supportingText = {
+                        Text(
+                            "The map and each chosen photo go as separate pictures. Facebook and Instagram drop text that comes " +
+                                "from another app, so this is copied to your clipboard too: paste it into the caption."
+                        )
+                    },
+                    minLines = 6,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                )
+                if (editedPost != null) {
+                    TextButton(onClick = { editedPost = null }) { Text("Reset to the generated text") }
                 }
             }
         }
@@ -202,69 +264,10 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                 }
             }
         }
-        item {
-            Text("Trip data for a video", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 20.dp))
-            Text(
-                "One zip with everything about this trip as JSON (legs, route, stops, place names, notes, incidents and where each " +
-                    "photo was taken) and the photos themselves, named in the order they were taken. Ready to use with other " +
-                    "pictures and clips in a video.",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 4.dp)
-            )
-        }
-        item { SwitchRow("Photos (${photos.size})", exportPhotos) { exportPhotos = it } }
-        item { SwitchRow("Videos ($videoCount), can be large", exportVideos) { exportVideos = it } }
-        item { SwitchRow("Voice notes ($audioCount)", exportAudio) { exportAudio = it } }
-        item { SwitchRow("Picture of the route map" + if (!includeMap) " (turn the map on above)" else "", exportMap && includeMap) { exportMap = it } }
-        item {
-            Button(
-                enabled = !busy && exportProgress == null,
-                onClick = {
-                    exportProgress = "Preparing…"
-                    scope.launch {
-                        try {
-                            val shownExport = homeCentre?.takeIf { hideHome }?.let { (lat, lon) ->
-                                mapExport?.withoutArea(lat, lon, homeSettings.radiusKm.toDouble())
-                            } ?: mapExport
-                            val snapshot = if (includeMap && exportMap) mapView?.let { captureMapImage(it, shownExport, dark) } else null
-                            val result = TripExport.export(
-                                context, trip,
-                                TripExportOptions(exportPhotos, exportVideos, exportAudio, snapshot)
-                            ) { exportProgress = it }
-                            val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", result.file)
-                            val send = Intent(Intent.ACTION_SEND).apply {
-                                type = "application/zip"
-                                putExtra(Intent.EXTRA_STREAM, uri)
-                                putExtra(Intent.EXTRA_SUBJECT, trip.trip.title + " (trip data)")
-                                clipData = ClipData.newRawUri(trip.trip.title, uri)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            if (result.mediaMissing > 0) {
-                                Toast.makeText(context, "${result.mediaMissing} files couldn't be read and are listed as missing", Toast.LENGTH_LONG).show()
-                            }
-                            context.startActivity(Intent.createChooser(send, "Share trip data"))
-                        } catch (e: Exception) {
-                            Toast.makeText(context, e.message ?: "Couldn't export the trip", Toast.LENGTH_LONG).show()
-                        } finally {
-                            exportProgress = null
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp)
-            ) {
-                if (exportProgress != null) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Text("  $exportProgress")
-                } else {
-                    Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text("  Export trip data (zip)")
-                }
-            }
-        }
     }
 
     Button(
-        enabled = !busy && exportProgress == null,
+        enabled = !busy,
         onClick = {
             busy = true
             scope.launch {
@@ -273,6 +276,11 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                         mapExport?.withoutArea(lat, lon, homeSettings.radiusKm.toDouble())
                     } ?: mapExport
                     val snapshot = if (includeMap) mapView?.let { captureMapImage(it, shownExport, dark) } else null
+                    if (format == ShareFormat.POST) {
+                        val files = PostComposer.writeImages(context, snapshot, photos.filter { it.id in selectedPhotos })
+                        sharePost(context, title.trim().ifEmpty { trip.trip.title }, postText, files)
+                        return@launch
+                    }
                     val options = ShareOptions(
                         title = title,
                         message = message,
@@ -283,7 +291,8 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                         includeTripNotes = includeTripNotes,
                         includeImpressions = includeImpressions,
                         photos = photos.filter { it.id in selectedPhotos },
-                        format = format
+                        format = format,
+                        includeFooter = includeFooter
                     )
                     val result = ShareComposer.compose(context, trip, snapshot, options)
                     val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", result.file)
@@ -313,6 +322,37 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
             Text("  Share")
         }
     }
+}
+
+/**
+ * Opens the share sheet with the written post and its pictures. The text is also put on the clipboard, because
+ * Facebook and Instagram ignore text that comes with a share.
+ */
+private fun sharePost(context: Context, title: String, text: String, files: List<File>) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText(title, text))
+
+    val uris = files.map { FileProvider.getUriForFile(context, context.packageName + ".fileprovider", it) }
+    val send = when (uris.size) {
+        0 -> Intent(Intent.ACTION_SEND).apply { type = "text/plain" }
+        1 -> Intent(Intent.ACTION_SEND).apply {
+            type = "image/jpeg"
+            putExtra(Intent.EXTRA_STREAM, uris[0])
+        }
+        else -> Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = "image/*"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+        }
+    }.apply {
+        putExtra(Intent.EXTRA_SUBJECT, title)
+        putExtra(Intent.EXTRA_TEXT, text)
+        if (uris.isNotEmpty()) {
+            clipData = ClipData.newRawUri(title, uris[0]).also { clip -> uris.drop(1).forEach { clip.addItem(ClipData.Item(it)) } }
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    }
+    context.startActivity(Intent.createChooser(send, "Share post"))
+    Toast.makeText(context, "Post text copied. If the app leaves it out, paste it into the caption.", Toast.LENGTH_LONG).show()
 }
 
 @Composable
