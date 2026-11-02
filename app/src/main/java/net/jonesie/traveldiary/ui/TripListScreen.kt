@@ -201,7 +201,7 @@ fun TripListScreen(
             }
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding).contentWidth()) {
             if (backupSettings.reminderDue(trips.isNotEmpty())) {
                 BackupReminderCard(
                     lastBackup = backupSettings.lastBackup,

@@ -170,7 +170,7 @@ fun AddIncidentScreen(
         }
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp).verticalScroll(rememberScrollState())
+            modifier = Modifier.fillMaxSize().padding(padding).contentWidth().padding(horizontal = 16.dp).verticalScroll(rememberScrollState())
         ) {
             Text("When?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

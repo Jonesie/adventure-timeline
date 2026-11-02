@@ -74,7 +74,7 @@ fun StatsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onOpenTrip:
             return@Scaffold
         }
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).contentWidth().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Summary(s)

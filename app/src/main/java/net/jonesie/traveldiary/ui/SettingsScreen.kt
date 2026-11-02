@@ -154,7 +154,7 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding).contentWidth().verticalScroll(rememberScrollState())) {
             SectionHeader("About")
             SettingRow(
                 icon = { Icon(Icons.Filled.Info, contentDescription = null) },

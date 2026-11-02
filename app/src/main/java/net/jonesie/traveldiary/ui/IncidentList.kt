@@ -259,7 +259,7 @@ fun IncidentsScreen(
         }
     ) { padding ->
         if (incidents.isEmpty()) {
-            Column(modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp)) {
+            Column(modifier = Modifier.fillMaxSize().padding(padding).contentWidth().padding(24.dp)) {
                 Text("Nothing has gone wrong yet.", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "Log a spill, a wrong turn or a river crossing gone sideways with the + button, even before the trip " +
@@ -270,7 +270,7 @@ fun IncidentsScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier.fillMaxSize().padding(padding).contentWidth(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp)
             ) {
                 items(incidents, key = { it.id }) { incident ->

@@ -256,11 +256,11 @@ fun TripDetailScreen(
             Column(modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
                 when (selectedTab) {
                     0 -> OverviewTab(tripId, viewModel, trip, onOpenMap, onOpenMedia, onRate = { viewModel.setTripRating(tripId, it) })
-                    1 -> LegsTab(legGroups, onEditGroup = { editingGroup = it })
+                    1 -> CappedColumn { LegsTab(legGroups, onEditGroup = { editingGroup = it }) }
                     2 -> MediaTab(trip, importProgress, onPickMedia, onAutoAddMedia, onOpenMedia, nearbyCount, onReviewNearby)
-                    3 -> NotesTab(trip)
-                    4 -> IncidentsTab(trip, viewModel, onAdd = onAddIncident, onEdit = onEditIncident, onOpenMedia = onOpenIncidentMedia)
-                    else -> ShareTab(tripId, viewModel, trip)
+                    3 -> CappedColumn { NotesTab(trip) }
+                    4 -> CappedColumn { IncidentsTab(trip, viewModel, onAdd = onAddIncident, onEdit = onEditIncident, onOpenMedia = onOpenIncidentMedia) }
+                    else -> CappedColumn { ShareTab(tripId, viewModel, trip) }
                 }
             }
         }

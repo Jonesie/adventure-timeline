@@ -52,7 +52,7 @@ fun AboutScreen(onBack: () -> Unit) {
         }
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)
+            modifier = Modifier.fillMaxSize().padding(padding).contentWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)
         ) {
             Text("Adventure Timeline", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 8.dp))
             Text(

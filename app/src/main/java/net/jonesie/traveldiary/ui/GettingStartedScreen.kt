@@ -103,13 +103,13 @@ fun GettingStartedScreen(
                 )
             }
 
-            Button(onClick = onImportTimeline, modifier = Modifier.fillMaxWidth().widthIn(max = 480.dp).padding(top = 28.dp)) {
+            Button(onClick = onImportTimeline, modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth().padding(top = 28.dp)) {
                 Text("Import from Google Timeline")
             }
-            OutlinedButton(onClick = onAddTrip, modifier = Modifier.fillMaxWidth().widthIn(max = 480.dp)) {
+            OutlinedButton(onClick = onAddTrip, modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth()) {
                 Text("Add a trip by hand")
             }
-            OutlinedButton(onClick = onLogIncident, modifier = Modifier.fillMaxWidth().widthIn(max = 480.dp)) {
+            OutlinedButton(onClick = onLogIncident, modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth()) {
                 Text("Log an incident")
             }
             TextButton(onClick = onOpenSettings) { Text("Restore from a backup in Settings") }

@@ -104,7 +104,7 @@ fun ImportTimelineScreen(
             } else {
                 val trips = parsed!!.trips
                 Text("Found ${trips.size} trips Google detected. Choose which to import:")
-                LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                LazyColumn(modifier = Modifier.contentWidth().weight(1f)) {
                     items(trips.size) { index ->
                         val trip = trips[index]
                         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
