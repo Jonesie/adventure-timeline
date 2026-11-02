@@ -1,0 +1,2 @@
+New: share a trip as a post. You get a written caption (dates, distance, transport and route, which you can edit) plus the map and photos as separate pictures, ending with a link to Adventure Timeline.
+Also: you can delete a leg, the trip data export has its own page in the trip's menu, the Share map can be collapsed, and lists are tidier on tablets.
