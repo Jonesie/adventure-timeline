@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -25,6 +28,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -89,14 +93,13 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
     var includeDates by remember { mutableStateOf(true) }
     var includeRating by remember { mutableStateOf(true) }
     var includeCompanions by remember { mutableStateOf(false) }
-    var includeTripNotes by remember { mutableStateOf(trip.trip.notes.isNotBlank()) }
-    var includeImpressions by remember { mutableStateOf(false) }
-    var includeFooter by remember { mutableStateOf(true) }
+    var includeNotes by remember { mutableStateOf(PostComposer.cleanNotes(trip.trip.notes).isNotEmpty()) }
     var selectedPhotos by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var format by remember { mutableStateOf(ShareFormat.POST) }
     var includeRoute by remember { mutableStateOf(true) }
-    // Null while the written post is still being built from the switches; set once it's been edited by hand.
-    var editedPost by remember { mutableStateOf<String?>(null) }
+    var includeLegs by remember { mutableStateOf(false) }
+    var includeIncidents by remember { mutableStateOf(false) }
+    var showPreview by remember { mutableStateOf(false) }
     var routeKm by remember { mutableStateOf<Double?>(null) }
     LaunchedEffect(tripId, trip.legs) {
         routeKm = RouteShape.trailKm(viewModel.routePointsFor(tripId)).takeIf { it > 0 }
@@ -108,14 +111,14 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
     var hideHome by remember { mutableStateOf(true) }
 
     val photos = remember(trip.media) { trip.sortedMedia().filter { it.type == MediaType.PHOTO } }
-    val generatedPost = remember(trip, title, message, includeDates, includeRating, includeRoute, includeCompanions, includeTripNotes, includeImpressions, includeFooter, routeKm) {
-        PostComposer.buildText(
+    val postContent = remember(trip, title, message, includeDates, includeRating, includeRoute, includeLegs, includeIncidents, includeCompanions, includeNotes, routeKm) {
+        PostComposer.build(
             trip,
-            PostOptions(title, message, includeDates, includeRating, includeRoute, includeCompanions, includeTripNotes, includeImpressions, includeFooter),
+            PostOptions(title, message, includeDates, includeRating, includeRoute, includeLegs, includeIncidents, includeCompanions, includeNotes),
             routeKm
         )
     }
-    val postText = editedPost ?: generatedPost
+    val postText = postContent.toText()
 
 
     if (includeMap) {
@@ -156,27 +159,36 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
             )
         }
-        item {
-            OutlinedTextField(
-                value = message,
-                onValueChange = { message = it },
-                label = { Text(if (format == ShareFormat.POST) "Message (goes in the post)" else "Message (shown under the map)") },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-            )
-        }
+        item { SectionHeader("Map") }
         item { SwitchRow("Map (as you framed it)", includeMap) { includeMap = it } }
         if (homeCentre != null) {
             item { SwitchRow("Hide my home area (${homeSettings.radiusKm} km) from the map", hideHome) { hideHome = it } }
         }
+        item { SectionHeader("Trip facts") }
         item { SwitchRow("Dates", includeDates) { includeDates = it } }
         item { SwitchRow("Star rating", includeRating) { includeRating = it } }
         if (format == ShareFormat.POST) {
-            item { SwitchRow("Route summary (distance, transport, places)", includeRoute) { includeRoute = it } }
+            item { SwitchRow("Route summary (days, distance, transport)", includeRoute) { includeRoute = it } }
+            item { SwitchRow("Each leg (from → to, transport)" + if (trip.legs.isEmpty()) " (none logged)" else "", includeLegs) { includeLegs = it } }
+            item { SwitchRow("Incidents (${trip.incidents.size} logged, highlighted in the post)", includeIncidents) { includeIncidents = it } }
         }
         item { SwitchRow("Companions" + if (trip.companions.isEmpty()) " (none logged)" else "", includeCompanions) { includeCompanions = it } }
-        item { SwitchRow("Trip notes" + if (trip.trip.notes.isBlank()) " (none)" else "", includeTripNotes) { includeTripNotes = it } }
-        item { SwitchRow("Impressions (${trip.impressions.size})", includeImpressions) { includeImpressions = it } }
-        item { SwitchRow("Adventure Timeline footer (with link)", includeFooter) { includeFooter = it } }
+        item { SectionHeader("Words") }
+        item {
+            OutlinedTextField(
+                value = message,
+                onValueChange = { message = it },
+                label = { Text("Your message") },
+                supportingText = {
+                    Text(
+                        (if (format == ShareFormat.POST) "Goes in the post" else "Shown under the map") +
+                            ". Written just for this share; it isn't saved on the trip."
+                    )
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
+        }
+        item { SwitchRow("Trip notes" + if (PostComposer.cleanNotes(trip.trip.notes).isEmpty()) " (none)" else "", includeNotes) { includeNotes = it } }
         item {
             Row(
                 modifier = Modifier.padding(top = 8.dp),
@@ -191,22 +203,13 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
         }
         if (format == ShareFormat.POST) {
             item {
-                OutlinedTextField(
-                    value = postText,
-                    onValueChange = { editedPost = it },
-                    label = { Text("Post text") },
-                    supportingText = {
-                        Text(
-                            "The map and each chosen photo go as separate pictures. Facebook and Instagram drop text that comes " +
-                                "from another app, so this is copied to your clipboard too: paste it into the caption."
-                        )
-                    },
-                    minLines = 6,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                Text(
+                    "The post goes as a picture of the text and map, then each chosen photo, then a closing card with the link. " +
+                        "The text is copied to your clipboard too, for apps that take a caption: paste it in.",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp)
                 )
-                if (editedPost != null) {
-                    TextButton(onClick = { editedPost = null }) { Text("Reset to the generated text") }
-                }
+                TextButton(onClick = { showPreview = true }) { Text("Preview post text") }
             }
         }
         item {
@@ -266,6 +269,23 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
         }
     }
 
+    if (showPreview) {
+        AlertDialog(
+            onDismissRequest = { showPreview = false },
+            title = { Text("Post text") },
+            text = {
+                SelectionContainer {
+                    Text(postText, modifier = Modifier.verticalScroll(rememberScrollState()))
+                }
+            },
+            confirmButton = { TextButton(onClick = { showPreview = false }) { Text("Close") } }
+        )
+    }
+    Text(
+        "Every share ends with a link to Adventure Timeline.",
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.padding(top = 4.dp)
+    )
     Button(
         enabled = !busy,
         onClick = {
@@ -277,8 +297,8 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                     } ?: mapExport
                     val snapshot = if (includeMap) mapView?.let { captureMapImage(it, shownExport, dark) } else null
                     if (format == ShareFormat.POST) {
-                        val files = PostComposer.writeImages(context, snapshot, photos.filter { it.id in selectedPhotos })
-                        sharePost(context, title.trim().ifEmpty { trip.trip.title }, postText, files)
+                        val files = PostComposer.writeImages(context, postContent, snapshot, photos.filter { it.id in selectedPhotos })
+                        sharePost(context, title.trim().ifEmpty { trip.trip.title }, PostComposer.withFooter(postText), files)
                         return@launch
                     }
                     val options = ShareOptions(
@@ -288,11 +308,9 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                         includeRating = includeRating,
                         includeMap = includeMap,
                         includeCompanions = includeCompanions,
-                        includeTripNotes = includeTripNotes,
-                        includeImpressions = includeImpressions,
+                        includeNotes = includeNotes,
                         photos = photos.filter { it.id in selectedPhotos },
-                        format = format,
-                        includeFooter = includeFooter
+                        format = format
                     )
                     val result = ShareComposer.compose(context, trip, snapshot, options)
                     val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", result.file)
@@ -353,6 +371,16 @@ private fun sharePost(context: Context, title: String, text: String, files: List
     }
     context.startActivity(Intent.createChooser(send, "Share post"))
     Toast.makeText(context, "Post text copied. If the app leaves it out, paste it into the caption.", Toast.LENGTH_LONG).show()
+}
+
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 12.dp, bottom = 2.dp)
+    )
 }
 
 @Composable

@@ -19,7 +19,7 @@ Everything below is created by you or imported by you, and is kept in the app's 
 - **Trips and legs:** titles, dates, notes, ratings, transport types, difficulty and enjoyment ratings, and the places and times of each leg.
 - **Routes:** the GPS trail for a trip, if you import it from a Google Maps Timeline export that you supply. The app reads that file on your phone and does not contact Google. It does not record your location in the background.
 - **Photos, videos and audio:** photos and videos you take in the app or import are copied into the app's storage. Items you add from your gallery are *linked*, not copied; they stay where they are.
-- **Notes and impressions,** with the time and (if allowed) the location you were at when you wrote them.
+- **Notes,** the single note you can write on each trip.
 - **Companions:** names you type. If you allow access to contacts, a companion can be linked to a contact by its Android contact identifier.
 - **A location index of your gallery:** to suggest photos taken near a trip's route, the app reads where each gallery photo and video was taken and keeps a small cache of those locations. Nothing about the pictures themselves is copied.
 - **Incidents:** when you log something that went wrong (a spill, a wrong turn, a breakdown), the app stores what it was, how bad, when, a note, where (only if you let it tag your location) and any photos or videos you attach.

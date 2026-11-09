@@ -1,6 +1,5 @@
 package net.jonesie.traveldiary.util
 
-import net.jonesie.traveldiary.data.Impression
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.IncidentCategory
 import net.jonesie.traveldiary.data.Leg
@@ -51,7 +50,6 @@ object TripStatsCalculator {
         legs: List<Leg>,
         trails: Map<Long, List<RoutePoint>>,
         media: List<MediaItem>,
-        impressions: List<Impression>,
         incidents: List<Incident> = emptyList()
     ): TripStats {
         val legsByTrip = legs.groupBy { it.tripId }
@@ -120,7 +118,7 @@ object TripStatsCalculator {
             photos = media.count { it.type == MediaType.PHOTO },
             videos = media.count { it.type == MediaType.VIDEO },
             voiceNotes = media.count { it.type == MediaType.AUDIO },
-            notes = impressions.size,
+            notes = trips.count { PostComposer.cleanNotes(it.notes).isNotEmpty() },
             incidents = incidents.size,
             byIncident = incidents.groupingBy { it.category }.eachCount()
                 .map { IncidentStat(it.key, it.value) }

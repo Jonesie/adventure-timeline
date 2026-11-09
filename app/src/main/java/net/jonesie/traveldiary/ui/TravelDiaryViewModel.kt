@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.jonesie.traveldiary.data.Companion
-import net.jonesie.traveldiary.data.Impression
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.IncidentPersonCrossRef
 import net.jonesie.traveldiary.data.Leg
@@ -173,21 +172,6 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    fun addImpression(tripId: Long, legId: Long?, text: String, lat: Double?, lon: Double?) {
-        viewModelScope.launch {
-            dao.insertImpression(
-                Impression(
-                    tripId = tripId,
-                    legId = legId,
-                    text = text,
-                    timestamp = System.currentTimeMillis(),
-                    lat = lat,
-                    lon = lon
-                )
-            )
-        }
-    }
-
     // ---- Incidents
 
     /** Every incident, newest first, with or without a trip. */
@@ -316,7 +300,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
      * Called sequentially (one trip at a time) from the import screen's own coroutine so
      * progress can be reported trip-by-trip. Re-importing a trip with the same date bounds
      * (deterministic from Google's export) updates it in place instead of duplicating it —
-     * its legs are replaced, but companions/media/impressions added since are left alone.
+     * its legs are replaced, but companions/media added since are left alone.
      */
     suspend fun importTimelineTrip(
         startDate: Long,
@@ -432,7 +416,6 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
             legs = dao.getAllLegs(),
             trails = dao.getAllRoutePoints().groupBy { it.tripId },
             media = dao.getAllMedia(),
-            impressions = dao.getAllImpressions(),
             incidents = dao.getAllIncidents()
         )
     }
@@ -893,10 +876,9 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     suspend fun findNearby(lat: Double, lon: Double): NearbyResult {
-        val impressions = dao.findImpressionsNear(lat, lon, NEARBY_RADIUS_DEGREES_SQUARED)
         val media = dao.findMediaNear(lat, lon, NEARBY_RADIUS_DEGREES_SQUARED)
         val incidents = dao.findIncidentsNear(lat, lon, NEARBY_RADIUS_DEGREES_SQUARED)
-        return NearbyResult(impressions, media, incidents)
+        return NearbyResult(media, incidents)
     }
 }
 
@@ -1012,9 +994,8 @@ data class BackupSettings(val lastBackup: Long?, val reminderDays: Int, val snoo
 data class MediaImportProgress(val done: Int, val total: Int)
 
 data class NearbyResult(
-    val impressions: List<Impression>,
     val media: List<MediaItem>,
     val incidents: List<Incident> = emptyList()
 ) {
-    val isEmpty: Boolean get() = impressions.isEmpty() && media.isEmpty() && incidents.isEmpty()
+    val isEmpty: Boolean get() = media.isEmpty() && incidents.isEmpty()
 }

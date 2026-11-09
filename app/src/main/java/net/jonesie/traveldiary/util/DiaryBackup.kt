@@ -11,7 +11,7 @@ import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.jonesie.traveldiary.data.Companion
-import net.jonesie.traveldiary.data.Impression
+import net.jonesie.traveldiary.data.foldLegacyImpressions
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.IncidentCategory
 import net.jonesie.traveldiary.data.IncidentPersonCrossRef
@@ -152,15 +152,6 @@ object DiaryBackup {
             }
             writer.endArray()
 
-            writer.name("impressions").beginArray()
-            dao.getAllImpressions().forEach { i ->
-                writer.beginObject()
-                writer.put("id", i.id); writer.put("tripId", i.tripId); writer.put("legId", i.legId)
-                writer.put("text", i.text); writer.put("timestamp", i.timestamp)
-                writer.put("lat", i.lat); writer.put("lon", i.lon)
-                writer.endObject()
-            }
-            writer.endArray()
 
             writer.name("incidents").beginArray()
             dao.getAllIncidents().forEach { i ->
@@ -261,7 +252,6 @@ object DiaryBackup {
         val crossRefs: List<TripCompanionCrossRef>,
         val legs: List<Leg>,
         val media: List<ParsedMedia>,
-        val impressions: List<Impression>,
         val incidents: List<Incident>,
         val incidentPeople: List<IncidentPersonCrossRef>,
         val incidentReasons: List<String>?,
@@ -331,7 +321,6 @@ object DiaryBackup {
                     dao.insertCrossRefs(data.crossRefs)
                     dao.insertLegs(data.legs)
                     dao.insertMediaItems(mediaItems)
-                    dao.insertImpressions(data.impressions)
                     dao.insertIncidents(data.incidents)
                     dao.insertIncidentPeople(data.incidentPeople)
                     data.routes.chunked(5000).forEach { dao.insertRoutePoints(it) }
@@ -360,7 +349,7 @@ object DiaryBackup {
         val crossRefs = mutableListOf<TripCompanionCrossRef>()
         val legs = mutableListOf<Leg>()
         val media = mutableListOf<ParsedMedia>()
-        val impressions = mutableListOf<Impression>()
+        val oldImpressions = mutableListOf<Triple<Long, Long, String>>()
         val incidents = mutableListOf<Incident>()
         val incidentPeople = mutableListOf<IncidentPersonCrossRef>()
         var incidentReasons: MutableList<String>? = null
@@ -408,12 +397,9 @@ object DiaryBackup {
                         file = m.stringOrNull("file")
                     )
                 }
+                // Older backups carry impressions; they are folded into the trip's note on the way in.
                 "impressions" -> readObjects(reader) { m ->
-                    impressions += Impression(
-                        id = m.long("id"), tripId = m.long("tripId"), legId = m.longOrNull("legId"),
-                        text = m.string("text"), timestamp = m.long("timestamp"),
-                        lat = m.doubleOrNull("lat"), lon = m.doubleOrNull("lon")
-                    )
+                    oldImpressions += Triple(m.long("tripId"), m.long("timestamp"), m.string("text"))
                 }
                 "incidents" -> readObjects(reader) { m ->
                     incidents += Incident(
@@ -470,7 +456,11 @@ object DiaryBackup {
 
         if (format < 1) error("This isn't an Adventure Timeline backup")
         if (format > FORMAT) error("This backup was made by a newer version of the app")
-        return Parsed(trips, companions, crossRefs, legs, media, impressions, incidents, incidentPeople, incidentReasons, routes)
+        val folded = trips.map { trip ->
+            val entries = oldImpressions.filter { it.first == trip.id }.map { it.second to it.third }
+            if (entries.isEmpty()) trip else trip.copy(notes = foldLegacyImpressions(trip.notes, entries))
+        }
+        return Parsed(folded, companions, crossRefs, legs, media, incidents, incidentPeople, incidentReasons, routes)
     }
 
     class Estimate(val appFilesBytes: Long, val cameraRollBytes: Long)

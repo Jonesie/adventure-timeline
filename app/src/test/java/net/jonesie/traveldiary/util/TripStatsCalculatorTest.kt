@@ -1,6 +1,5 @@
 package net.jonesie.traveldiary.util
 
-import net.jonesie.traveldiary.data.Impression
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.IncidentCategory
 import net.jonesie.traveldiary.data.Leg
@@ -34,7 +33,7 @@ class TripStatsCalculatorTest {
     fun countsTripsAndGroupsThemByYear() {
         val stats = TripStatsCalculator.compute(
             trips = listOf(trip(1, june2025), trip(2, june2025 + 86_400_000), trip(3, june2026)),
-            legs = emptyList(), trails = emptyMap(), media = emptyList(), impressions = emptyList()
+            legs = emptyList(), trails = emptyMap(), media = emptyList()
         )
         assertEquals(3, stats.trips)
         assertEquals(listOf(2025, 2026), stats.byYear.map { it.year })
@@ -49,7 +48,7 @@ class TripStatsCalculatorTest {
         val stats = TripStatsCalculator.compute(
             trips = listOf(trip(1, june2025)),
             legs = listOf(leg(1, TransportType.MOTORBIKE, 0, 4000)),
-            trails = mapOf(1L to trail), media = emptyList(), impressions = emptyList()
+            trails = mapOf(1L to trail), media = emptyList()
         )
         assertEquals(expected, stats.totalKm, 0.01)
         assertEquals(TransportType.MOTORBIKE, stats.byTransport.first().type)
@@ -65,7 +64,7 @@ class TripStatsCalculatorTest {
         )
         val stats = TripStatsCalculator.compute(
             trips = listOf(trip(1, june2025)), legs = listOf(flight),
-            trails = emptyMap(), media = emptyList(), impressions = emptyList()
+            trails = emptyMap(), media = emptyList()
         )
         assertTrue("was ${stats.totalKm}", stats.totalKm in 2000.0..2300.0)
         assertEquals(TransportType.PLANE, stats.byTransport.first().type)
@@ -80,8 +79,8 @@ class TripStatsCalculatorTest {
             MediaItem(tripId = 1, type = MediaType.AUDIO, uri = "d", timestamp = 0)
         )
         val stats = TripStatsCalculator.compute(
-            trips = listOf(trip(1, june2025)), legs = emptyList(), trails = emptyMap(), media = media,
-            impressions = listOf(Impression(tripId = 1, text = "wow", timestamp = 0))
+            trips = listOf(trip(1, june2025).copy(notes = "wow"), trip(2, june2025).copy(notes = "Imported from Google Timeline"), trip(3, june2025)),
+            legs = emptyList(), trails = emptyMap(), media = media
         )
         assertEquals(2, stats.photos)
         assertEquals(1, stats.videos)
@@ -94,7 +93,7 @@ class TripStatsCalculatorTest {
         val stats = TripStatsCalculator.compute(
             trips = listOf(trip(1, june2025, rating = 5), trip(2, june2025, rating = 3), trip(3, june2025), trip(4, june2025, rating = 4)),
             legs = listOf(leg(1, TransportType.CAR, 0, 1, difficulty = 2, enjoyment = 4), leg(1, TransportType.CAR, 0, 1, difficulty = 4)),
-            trails = emptyMap(), media = emptyList(), impressions = emptyList()
+            trails = emptyMap(), media = emptyList()
         )
         assertEquals(listOf(1, 0, 0, 1, 1, 1), stats.ratingCounts)
         assertEquals(4.0, stats.averageRating!!, 0.001)
@@ -106,7 +105,7 @@ class TripStatsCalculatorTest {
     @Test
     fun noRatingsMeansNoAverages() {
         val stats = TripStatsCalculator.compute(
-            trips = listOf(trip(1, june2025)), legs = emptyList(), trails = emptyMap(), media = emptyList(), impressions = emptyList()
+            trips = listOf(trip(1, june2025)), legs = emptyList(), trails = emptyMap(), media = emptyList()
         )
         assertNull(stats.averageRating)
         assertNull(stats.longestTrip)
@@ -117,7 +116,7 @@ class TripStatsCalculatorTest {
         fun incident(category: IncidentCategory, severity: Int = 0) =
             Incident(tripId = null, category = category, severity = severity, timestamp = june2025)
         val stats = TripStatsCalculator.compute(
-            trips = listOf(trip(1, june2025)), legs = emptyList(), trails = emptyMap(), media = emptyList(), impressions = emptyList(),
+            trips = listOf(trip(1, june2025)), legs = emptyList(), trails = emptyMap(), media = emptyList(),
             incidents = listOf(
                 incident(IncidentCategory.LOST), incident(IncidentCategory.FELL_OFF, severity = 3),
                 incident(IncidentCategory.FELL_OFF), incident(IncidentCategory.WATER, severity = 2)

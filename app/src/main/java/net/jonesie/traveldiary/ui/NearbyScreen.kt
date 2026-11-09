@@ -78,9 +78,6 @@ fun NearbyScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
                                 if (it.notes.isNotBlank()) " — ${it.notes}" else ""
                         )
                     }
-                    result!!.impressions.forEach {
-                        Text("• ${DateFormat.getDateInstance().format(Date(it.timestamp))}: ${it.text}")
-                    }
                     result!!.media.forEach {
                         Text("• ${DateFormat.getDateInstance().format(Date(it.timestamp))}: ${it.type} ${it.caption}")
                     }

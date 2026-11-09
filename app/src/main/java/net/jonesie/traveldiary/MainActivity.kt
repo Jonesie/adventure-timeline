@@ -35,7 +35,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import net.jonesie.traveldiary.data.MediaType
 import net.jonesie.traveldiary.ui.AboutScreen
-import net.jonesie.traveldiary.ui.AddImpressionScreen
 import net.jonesie.traveldiary.ui.AddIncidentScreen
 import net.jonesie.traveldiary.ui.IncidentMediaViewerScreen
 import net.jonesie.traveldiary.ui.IncidentsScreen
@@ -336,7 +335,6 @@ private fun TravelDiaryApp() {
                 },
                 onRecordAudio = { navController.navigate("tripDetail/$tripId/recordAudio") },
                 onImportAudio = { importAudio.launch("audio/*") },
-                onAddImpression = { navController.navigate("tripDetail/$tripId/addImpression") },
                 onAddIncident = { navController.navigate("incident?tripId=$tripId") },
                 onEditIncident = { id -> navController.navigate("incident?incidentId=$id") },
                 onOpenIncidentMedia = { id, index -> navController.navigate("incidentMedia/$id/$index") },
@@ -413,21 +411,6 @@ private fun TravelDiaryApp() {
                 onBack = { navController.popBackStack() },
                 onSave = { transportType, origin, destination ->
                     viewModel.addLeg(tripId, transportType, origin, destination, System.currentTimeMillis(), null)
-                    navController.popBackStack()
-                }
-            )
-        }
-
-        composable(
-            "tripDetail/{tripId}/addImpression",
-            arguments = listOf(navArgument("tripId") { type = NavType.LongType })
-        ) { backStackEntry ->
-            val tripId = backStackEntry.arguments?.getLong("tripId") ?: return@composable
-            AddImpressionScreen(
-                onBack = { navController.popBackStack() },
-                onSave = { text ->
-                    val loc = LocationHelper.lastKnownLocation(context)
-                    viewModel.addImpression(tripId, null, text, loc?.latitude, loc?.longitude)
                     navController.popBackStack()
                 }
             )

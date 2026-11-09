@@ -34,7 +34,7 @@ interface TravelDiaryDao {
     suspend fun updateTripRating(id: Long, rating: Int)
 
     /**
-     * Trips that came within a radius of a point: any GPS trail point, leg endpoint, note or media
+     * Trips that came within a radius of a point: any GPS trail point, leg endpoint, incident or media
      * location. Distances use a flat-earth approximation (longitude scaled by cos(latitude)),
      * with [radiusSquared] in squared degrees — plenty accurate at trip-search scales.
      */
@@ -42,7 +42,6 @@ interface TravelDiaryDao {
         SELECT DISTINCT tripId FROM route_points WHERE ((lat - :lat) * (lat - :lat) + ((lon - :lon) * :cosLat) * ((lon - :lon) * :cosLat)) < :radiusSquared UNION
         SELECT DISTINCT tripId FROM legs WHERE originLat IS NOT NULL AND ((originLat - :lat) * (originLat - :lat) + ((originLon - :lon) * :cosLat) * ((originLon - :lon) * :cosLat)) < :radiusSquared UNION
         SELECT DISTINCT tripId FROM legs WHERE destinationLat IS NOT NULL AND ((destinationLat - :lat) * (destinationLat - :lat) + ((destinationLon - :lon) * :cosLat) * ((destinationLon - :lon) * :cosLat)) < :radiusSquared UNION
-        SELECT DISTINCT tripId FROM impressions WHERE lat IS NOT NULL AND ((lat - :lat) * (lat - :lat) + ((lon - :lon) * :cosLat) * ((lon - :lon) * :cosLat)) < :radiusSquared UNION
         SELECT DISTINCT tripId FROM incidents WHERE lat IS NOT NULL AND ((lat - :lat) * (lat - :lat) + ((lon - :lon) * :cosLat) * ((lon - :lon) * :cosLat)) < :radiusSquared UNION
         SELECT DISTINCT tripId FROM media_items WHERE lat IS NOT NULL AND ((lat - :lat) * (lat - :lat) + ((lon - :lon) * :cosLat) * ((lon - :lon) * :cosLat)) < :radiusSquared
     """)
@@ -140,9 +139,6 @@ interface TravelDiaryDao {
     suspend fun getTripById(id: Long): Trip?
 
     @Insert
-    suspend fun insertImpression(impression: Impression): Long
-
-    @Insert
     suspend fun insertRoutePoints(points: List<RoutePoint>)
 
     @Insert
@@ -227,7 +223,6 @@ interface TravelDiaryDao {
     @Query("SELECT * FROM trip_companions") suspend fun getAllCrossRefs(): List<TripCompanionCrossRef>
     @Query("SELECT * FROM legs") suspend fun getAllLegs(): List<Leg>
     @Query("SELECT * FROM media_items") suspend fun getAllMedia(): List<MediaItem>
-    @Query("SELECT * FROM impressions") suspend fun getAllImpressions(): List<Impression>
     @Query("SELECT * FROM incidents") suspend fun getAllIncidents(): List<Incident>
     @Query("SELECT * FROM incident_people") suspend fun getAllIncidentPeople(): List<IncidentPersonCrossRef>
 
@@ -235,7 +230,6 @@ interface TravelDiaryDao {
     @Insert suspend fun insertCompanions(items: List<Companion>)
     @Insert suspend fun insertCrossRefs(items: List<TripCompanionCrossRef>)
     @Insert suspend fun insertLegs(items: List<Leg>)
-    @Insert suspend fun insertImpressions(items: List<Impression>)
     @Insert suspend fun insertIncidents(items: List<Incident>)
     @Insert suspend fun insertIncidentPeople(items: List<IncidentPersonCrossRef>)
 
@@ -252,17 +246,6 @@ interface TravelDiaryDao {
 
     @Query("SELECT * FROM route_points WHERE tripId = :tripId ORDER BY timestamp")
     suspend fun getRoutePointsForTrip(tripId: Long): List<RoutePoint>
-
-    /** Nearby past visits, for "have I been here before?" (v1: manual entries only). */
-    @Query(
-        """
-        SELECT * FROM impressions
-        WHERE lat IS NOT NULL AND lon IS NOT NULL
-        AND (lat - :lat) * (lat - :lat) + (lon - :lon) * (lon - :lon) < :radiusDegreesSquared
-        ORDER BY timestamp DESC
-        """
-    )
-    suspend fun findImpressionsNear(lat: Double, lon: Double, radiusDegreesSquared: Double): List<Impression>
 
     /** Past incidents near a point, so "have I been here before?" can warn about a bad spot. */
     @Query(

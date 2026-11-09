@@ -36,7 +36,6 @@ import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Mic
@@ -67,6 +66,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import net.jonesie.traveldiary.util.PostComposer
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -103,7 +103,6 @@ fun TripDetailScreen(
     onReviewNearby: () -> Unit,
     onRecordAudio: () -> Unit,
     onImportAudio: () -> Unit,
-    onAddImpression: () -> Unit,
     onAddIncident: () -> Unit,
     onEditIncident: (Long) -> Unit,
     onOpenIncidentMedia: (incidentId: Long, index: Int) -> Unit,
@@ -152,9 +151,6 @@ fun TripDetailScreen(
                 IconButton(onClick = onRecordAudio) {
                     Icon(Icons.Filled.Mic, contentDescription = "Record audio")
                 }
-                IconButton(onClick = onAddImpression) {
-                    Icon(Icons.Filled.EditNote, contentDescription = "Add impression")
-                }
                 androidx.compose.foundation.layout.Spacer(modifier = Modifier.weight(1f))
                 IconButton(onClick = { overflowExpanded = true }) {
                     Icon(Icons.Filled.MoreVert, contentDescription = "More")
@@ -198,7 +194,7 @@ fun TripDetailScreen(
             AlertDialog(
                 onDismissRequest = { confirmDelete = false },
                 title = { Text("Delete this trip?") },
-                text = { Text("This removes its legs, media and impressions. Incidents you logged stay, without a trip. This can't be undone.") },
+                text = { Text("This removes its legs, media and notes. Incidents you logged stay, without a trip. This can't be undone.") },
                 confirmButton = {
                     TextButton(onClick = {
                         viewModel.deleteTrip(tripId)
@@ -294,7 +290,7 @@ fun TripDetailScreen(
                     0 -> OverviewTab(tripId, viewModel, trip, onOpenMap, onOpenMedia, onRate = { viewModel.setTripRating(tripId, it) })
                     1 -> CappedColumn { LegsTab(legGroups, onEditGroup = { editingGroup = it }) }
                     2 -> MediaTab(trip, importProgress, onPickMedia, onAutoAddMedia, onOpenMedia, nearbyCount, onReviewNearby)
-                    3 -> CappedColumn { NotesTab(trip) }
+                    3 -> CappedColumn { NotesTab(trip, onEdit) }
                     4 -> CappedColumn { IncidentsTab(trip, viewModel, onAdd = onAddIncident, onEdit = onEditIncident, onOpenMedia = onOpenIncidentMedia) }
                     else -> CappedColumn { ShareTab(tripId, viewModel, trip) }
                 }
@@ -401,21 +397,12 @@ private fun LegsTab(legGroups: List<LegGroup>, onEditGroup: (LegGroup) -> Unit) 
 }
 
 @Composable
-private fun NotesTab(trip: TripDetail) {
-    if (trip.impressions.isEmpty()) {
-        Text("No notes or impressions logged yet", modifier = Modifier.padding(top = 16.dp))
-        return
-    }
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(top = 8.dp)) {
-        items(trip.impressions) { impression ->
-            Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                Text(impression.text)
-                Text(
-                    DateFormat.getDateTimeInstance().format(Date(impression.timestamp)),
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
+private fun NotesTab(trip: TripDetail, onEdit: () -> Unit) {
+    val notes = PostComposer.cleanNotes(trip.trip.notes)
+    Column(modifier = Modifier.fillMaxSize().padding(top = 8.dp).verticalScroll(rememberScrollState())) {
+        if (notes.isEmpty()) Text("No notes yet")
+        else Text(notes, modifier = Modifier.fillMaxWidth())
+        TextButton(onClick = onEdit) { Text(if (notes.isEmpty()) "Add notes" else "Edit notes") }
     }
 }
 

@@ -103,7 +103,7 @@ private fun Summary(s: TripStats) {
         Tile("Photos", "${s.photos}")
         Tile("Videos", "${s.videos}")
         Tile("Voice notes", "${s.voiceNotes}")
-        Tile("Notes", "${s.notes}")
+        Tile("Trips with notes", "${s.notes}")
         Tile("Incidents", "${s.incidents}")
     }
 }

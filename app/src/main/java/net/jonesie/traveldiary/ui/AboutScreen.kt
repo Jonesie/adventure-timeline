@@ -65,7 +65,7 @@ fun AboutScreen(onBack: () -> Unit) {
             Heading("What it is")
             Body(
                 "Adventure Timeline keeps a record of your trips: where you went, how you got there, who was with you, and the photos, " +
-                    "videos, voice notes and impressions you picked up along the way. Pull in the trips Google Maps Timeline has already " +
+                    "videos, voice notes and notes you picked up along the way. Pull in the trips Google Maps Timeline has already " +
                     "found, then add the human side to them: a rating, how hard or enjoyable each leg was, a note about the view."
             )
             Body(

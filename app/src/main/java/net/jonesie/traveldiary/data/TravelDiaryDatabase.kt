@@ -14,13 +14,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TripCompanionCrossRef::class,
         Leg::class,
         MediaItem::class,
-        Impression::class,
         Incident::class,
         IncidentPersonCrossRef::class,
         RoutePoint::class,
         GalleryIndexItem::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class TravelDiaryDatabase : RoomDatabase() {
@@ -134,13 +133,28 @@ abstract class TravelDiaryDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Impressions are gone: fold each one into its trip's single note so nothing written is lost.
+                val byTrip = linkedMapOf<Long, MutableList<Pair<Long, String>>>()
+                db.query("SELECT tripId, timestamp, text FROM impressions").use { c ->
+                    while (c.moveToNext()) byTrip.getOrPut(c.getLong(0)) { mutableListOf() } += c.getLong(1) to c.getString(2)
+                }
+                byTrip.forEach { (tripId, entries) ->
+                    val current = db.query("SELECT notes FROM trips WHERE id = $tripId").use { c -> if (c.moveToFirst()) c.getString(0) else "" }
+                    db.execSQL("UPDATE trips SET notes = ? WHERE id = ?", arrayOf<Any>(foldLegacyImpressions(current, entries), tripId))
+                }
+                db.execSQL("DROP TABLE impressions")
+            }
+        }
+
         fun get(context: Context): TravelDiaryDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     TravelDiaryDatabase::class.java,
                     "travel-diary.db"
-                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).fallbackToDestructiveMigration().build().also { instance = it }
+                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12).fallbackToDestructiveMigration().build().also { instance = it }
             }
     }
 }

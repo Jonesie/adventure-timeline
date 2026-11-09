@@ -1,7 +1,8 @@
 package net.jonesie.traveldiary.util
 
 import net.jonesie.traveldiary.data.Companion
-import net.jonesie.traveldiary.data.Impression
+import net.jonesie.traveldiary.data.Incident
+import net.jonesie.traveldiary.data.IncidentCategory
 import net.jonesie.traveldiary.data.Leg
 import net.jonesie.traveldiary.data.RoutePoint
 import net.jonesie.traveldiary.data.TransportType
@@ -27,23 +28,23 @@ class PostComposerTest {
     private fun trip(
         legs: List<Leg> = emptyList(),
         companions: List<Companion> = emptyList(),
-        impressions: List<Impression> = emptyList(),
         rating: Int = 0,
         notes: String = "",
-        days: Long = 0
+        days: Long = 0,
+        incidents: List<Incident> = emptyList()
     ) = TripDetail(
         trip = Trip(id = 1, title = "Hanmer ride", startDate = start, endDate = start + days * day, notes = notes, rating = rating),
-        companions = companions, legs = legs, media = emptyList(), impressions = impressions, incidents = emptyList()
+        companions = companions, legs = legs, media = emptyList(), incidents = incidents
     )
 
     private fun options(
-        message: String = "", dates: Boolean = false, rating: Boolean = true, route: Boolean = true,
-        companions: Boolean = true, notes: Boolean = true, impressions: Boolean = true
-    ) = PostOptions("", message, dates, rating, route, companions, notes, impressions)
+        message: String = "", dates: Boolean = false, rating: Boolean = true, route: Boolean = true, legs: Boolean = false,
+        incidents: Boolean = false, companions: Boolean = true, notes: Boolean = true
+    ) = PostOptions("", message, dates, rating, route, legs, incidents, companions, notes)
 
     @Test
     fun titleAloneWhenNothingElseIsWanted() {
-        val text = PostComposer.buildText(trip(), options(route = false, rating = false, companions = false, notes = false, impressions = false), null)
+        val text = PostComposer.buildText(trip(), options(route = false, rating = false, companions = false, notes = false), null)
         assertEquals("Hanmer ride", text)
     }
 
@@ -54,7 +55,7 @@ class PostComposerTest {
             leg(TransportType.CAR, "Hanmer Springs", "Christchurch", 30, 1)
         )
         val text = PostComposer.buildText(trip(legs, rating = 4, days = 2), options(), 412.4, Locale.US)
-        assertEquals("Hanmer ride\n3 days · 412 km · motorbike, car · ★★★★☆\n\nRoute: Christchurch → Hanmer Springs → Christchurch", text)
+        assertEquals("Hanmer ride\n3 days · 412 km · motorbike, car · ★★★★☆", text)
     }
 
     @Test
@@ -82,46 +83,72 @@ class PostComposerTest {
     }
 
     @Test
-    fun impressionsAreBulletsInTimeOrder() {
-        val impressions = listOf(
-            Impression(tripId = 1, text = "Second", timestamp = start + 2),
-            Impression(tripId = 1, text = "First", timestamp = start + 1)
-        )
-        val text = PostComposer.buildText(trip(impressions = impressions), options(route = false), null)
-        assertTrue(text.endsWith("• First\n• Second"))
-    }
-
-    @Test
     fun switchedOffPartsAreLeftOut() {
         val t = trip(
             listOf(leg(TransportType.CAR, "A", "B", 0, 1)), listOf(Companion(name = "Sam")),
-            listOf(Impression(tripId = 1, text = "Nice", timestamp = start)), rating = 5, notes = "Some notes"
+            rating = 5, notes = "Some notes"
         )
-        val text = PostComposer.buildText(t, options(rating = false, route = false, companions = false, notes = false, impressions = false), 50.0)
+        val text = PostComposer.buildText(t, options(rating = false, route = false, companions = false, notes = false), 50.0)
         assertEquals("Hanmer ride", text)
     }
 
     @Test
-    fun theFooterLinksToTheApp() {
-        val text = PostComposer.buildText(trip(), PostOptions("", "", false, false, false, false, false, false, includeFooter = true), null)
-        assertEquals("Hanmer ride\n\nMade with Adventure Timeline\nhttps://jonesie.github.io/adventure-timeline/", text)
+    fun thePreviewHasNoFooterButThePostedTextDoes() {
+        val text = PostComposer.buildText(trip(), PostOptions("", "", false, false, false, false, false, false, false), null)
+        assertEquals("Hanmer ride", text)
+        assertEquals("Hanmer ride\n\nMade with Adventure Timeline\nhttps://jonesie.github.io/adventure-timeline/", PostComposer.withFooter(text))
     }
 
     @Test
-    fun placeChainJoinsStopsInOrderAndDropsRepeats() {
+    fun legsAreListedSeparatelyFromTheRouteSummary() {
         val legs = listOf(
-            leg(TransportType.CAR, "A", "B", 0, 1),
-            leg(TransportType.CAR, "B", "B", 2, 1),
-            leg(TransportType.CAR, "B", "C", 4, 1)
+            leg(TransportType.CAR, "Hanmer Springs", "Christchurch", 30, 1),
+            leg(TransportType.MOTORBIKE, "Christchurch", "Hanmer Springs", 0, 3)
         )
-        assertEquals(listOf("A", "B", "C"), PostComposer.placeChain(legs))
+        val legsOnly = PostComposer.buildText(trip(legs), options(route = false, rating = false, legs = true, companions = false, notes = false), null)
+        assertEquals("Hanmer ride\n\nLegs:\n• Christchurch → Hanmer Springs · motorbike\n• Hanmer Springs → Christchurch · car", legsOnly)
+
+        val summaryOnly = PostComposer.buildText(trip(legs, days = 1), options(rating = false, legs = false, companions = false, notes = false), 100.0, Locale.US)
+        assertTrue(summaryOnly.contains("2 days · 100 km · motorbike, car"))
+        assertFalse(summaryOnly.contains("Legs:"))
+
+        val both = PostComposer.buildText(trip(legs, days = 1), options(rating = false, legs = true, companions = false, notes = false), 100.0, Locale.US)
+        assertTrue(both.contains("2 days · 100 km · motorbike, car"))
+        assertTrue(both.contains("Legs:"))
     }
 
     @Test
-    fun aLongChainKeepsTheStartAndTheEnd() {
-        val names = ('A'..'L').map { it.toString() }
-        val legs = names.zipWithNext().mapIndexed { i, (from, to) -> leg(TransportType.CAR, from, to, i * 2L, 1) }
-        assertEquals(listOf("A", "B", "C", "D", "…", "J", "K", "L"), PostComposer.placeChain(legs))
+    fun incidentsAreHighlightedInTimeOrderWithoutTheReasonOrPeople() {
+        val incidents = listOf(
+            Incident(category = IncidentCategory.WATER, severity = 2, notes = "Deep crossing\n  bike drowned", timestamp = start + 2, reason = "Stupidity"),
+            Incident(category = IncidentCategory.FLAT_TYRE, timestamp = start + 1)
+        )
+        val on = PostComposer.buildText(trip(incidents = incidents), options(route = false, rating = false, incidents = true, companions = false, notes = false), null)
+        assertEquals("Hanmer ride\n\n⚠ Incidents:\n⚠ Flat tyre\n⚠ River or water mishap (moderate): Deep crossing bike drowned", on)
+        val off = PostComposer.buildText(trip(incidents = incidents), options(route = false, rating = false, companions = false, notes = false), null)
+        assertFalse(off.contains("Incidents"))
+    }
+
+    @Test
+    fun theContentKeepsParagraphsSeparateAndMarksIncidents() {
+        val incidents = listOf(Incident(category = IncidentCategory.STUCK, timestamp = start))
+        val content = PostComposer.build(
+            trip(incidents = incidents), options(message = "Hi", route = false, rating = false, incidents = true, companions = false, notes = false), null
+        )
+        assertEquals("Hanmer ride", content.title)
+        assertEquals(null, content.facts)
+        assertEquals(listOf("Hi", "⚠ Incidents:\n⚠ Got stuck"), content.paragraphs.map { it.text })
+        assertEquals(listOf(false, true), content.paragraphs.map { it.accent })
+        assertEquals("Hanmer ride\n\nHi\n\n⚠ Incidents:\n⚠ Got stuck", content.toText())
+    }
+
+    @Test
+    fun aLongLegListIsCut() {
+        val legs = (0 until 20).map { leg(TransportType.CAR, "S$it", "S${it + 1}", it * 2L, 1) }
+        val lines = PostComposer.legLines(legs)
+        assertEquals(16, lines.size)
+        assertEquals("S0 → S1 · car", lines.first())
+        assertEquals("…and 5 more", lines.last())
     }
 
     @Test

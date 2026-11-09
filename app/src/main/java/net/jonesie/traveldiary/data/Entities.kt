@@ -119,24 +119,6 @@ data class RoutePoint(
     val timestamp: Long
 )
 
-@Entity(
-    tableName = "impressions",
-    foreignKeys = [
-        ForeignKey(entity = Trip::class, parentColumns = ["id"], childColumns = ["tripId"], onDelete = ForeignKey.CASCADE),
-        ForeignKey(entity = Leg::class, parentColumns = ["id"], childColumns = ["legId"], onDelete = ForeignKey.SET_NULL)
-    ],
-    indices = [Index("tripId"), Index("legId")]
-)
-data class Impression(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val tripId: Long,
-    val legId: Long? = null,
-    val text: String,
-    val timestamp: Long,
-    val lat: Double? = null,
-    val lon: Double? = null
-)
-
 /**
  * Something that went wrong (or nearly did): a spill, a wrong turn, a river crossing gone sideways.
  * It stands on its own (time, place, category, notes, media) and attaches to whichever trip covers

@@ -203,19 +203,6 @@ object TripExport {
                 w.endArray()
                 w.endObject()
 
-                // --- notes ---
-                w.name("impressions").beginArray()
-                trip.impressions.sortedBy { it.timestamp }.forEach { i ->
-                    w.beginObject()
-                    w.putTime("time", i.timestamp)
-                    w.put("text", i.text)
-                    w.put("leg", legIndexOf(i.legId))
-                    w.put("lat", i.lat); w.put("lon", i.lon)
-                    w.put("place", placeFor(i.lat, i.lon))
-                    w.endObject()
-                }
-                w.endArray()
-
                 // --- incidents ---
                 val incidentNumbers = trip.incidents.sortedBy { it.timestamp }.mapIndexed { i, inc -> inc.id to i + 1L }.toMap()
                 w.name("incidents").beginArray()

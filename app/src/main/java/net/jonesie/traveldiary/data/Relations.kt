@@ -35,8 +35,6 @@ data class TripDetail(
     @Relation(parentColumn = "id", entityColumn = "tripId")
     val media: List<MediaItem>,
     @Relation(parentColumn = "id", entityColumn = "tripId")
-    val impressions: List<Impression>,
-    @Relation(parentColumn = "id", entityColumn = "tripId")
     val incidents: List<Incident>
 )
 

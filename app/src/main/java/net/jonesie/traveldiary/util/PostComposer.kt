@@ -4,10 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.Leg
 import net.jonesie.traveldiary.data.MediaItem
 import net.jonesie.traveldiary.data.TransportType
 import net.jonesie.traveldiary.data.TripDetail
+import net.jonesie.traveldiary.ui.label
+import net.jonesie.traveldiary.ui.severityLabel
 import java.io.File
 import java.text.DateFormat
 import java.util.Date
@@ -20,26 +23,41 @@ data class PostOptions(
     val includeDates: Boolean,
     val includeRating: Boolean,
     val includeRoute: Boolean,
+    val includeLegs: Boolean,
+    val includeIncidents: Boolean,
     val includeCompanions: Boolean,
-    val includeTripNotes: Boolean,
-    val includeImpressions: Boolean,
-    val includeFooter: Boolean = false
+    val includeNotes: Boolean
 )
 
+/** One block of a post. [accent] marks the incident highlights. */
+class PostParagraph(val text: String, val accent: Boolean = false)
+
+/** The written post in pieces, so it can be flattened to text or drawn as a picture. */
+class PostContent(val title: String, val facts: String?, val paragraphs: List<PostParagraph>) {
+    fun toText(): String {
+        val out = StringBuilder(title)
+        if (facts != null) out.append('\n').append(facts)
+        paragraphs.forEach { out.append("\n\n").append(it.text) }
+        return out.toString()
+    }
+}
+
 /**
- * The trip as a social-media post: a written caption plus the map and photos as separate pictures,
- * rather than one long image. The caption is plain text so it pastes into anything.
+ * The trip as a social-media post: a picture of the written post with the map, then each photo as its own
+ * picture, then a closing card. The same text is also offered as a plain-text caption.
  */
 object PostComposer {
 
-    private const val MAX_PLACES = 8
+    private const val MAX_LEG_LINES = 15
     private const val PHOTO_MAX_SIDE = 1600
 
-    /** Written post. [trailKm] is the recorded route length, or null when there is no GPS trail. */
-    fun buildText(trip: TripDetail, options: PostOptions, trailKm: Double?, locale: Locale = Locale.getDefault()): String {
+    /** Written post as plain text. [trailKm] is the recorded route length, or null when there is no GPS trail. */
+    fun buildText(trip: TripDetail, options: PostOptions, trailKm: Double?, locale: Locale = Locale.getDefault()): String =
+        build(trip, options, trailKm, locale).toText()
+
+    fun build(trip: TripDetail, options: PostOptions, trailKm: Double?, locale: Locale = Locale.getDefault()): PostContent {
         val t = trip.trip
         val title = options.title.trim().ifEmpty { t.title }
-        val out = StringBuilder(title)
 
         val facts = mutableListOf<String>()
         if (options.includeDates) facts += dateRange(t.startDate, t.endDate, locale)
@@ -49,27 +67,48 @@ object PostComposer {
             transportSummary(trip.legs).takeIf { it.isNotEmpty() }?.let { facts += it }
         }
         if (options.includeRating && t.rating > 0) facts += "★".repeat(t.rating) + "☆".repeat(5 - t.rating)
-        if (facts.isNotEmpty()) out.append('\n').append(facts.joinToString(" · "))
 
-        if (options.message.isNotBlank()) out.append("\n\n").append(options.message.trim())
+        val paragraphs = mutableListOf<PostParagraph>()
+        if (options.message.isNotBlank()) paragraphs += PostParagraph(options.message.trim())
 
-        if (options.includeRoute) {
-            val places = placeChain(trip.legs)
-            if (places.size > 1) out.append("\n\nRoute: ").append(places.joinToString(" → "))
+        val legLines = if (options.includeLegs) legLines(trip.legs) else emptyList()
+        if (legLines.isNotEmpty()) paragraphs += PostParagraph("Legs:" + legLines.joinToString("") { "\n• $it" })
+        if (options.includeIncidents && trip.incidents.isNotEmpty()) {
+            val lines = trip.incidents.sortedBy { it.timestamp }.joinToString("") { "\n⚠ " + incidentLine(it) }
+            paragraphs += PostParagraph("⚠ Incidents:$lines", accent = true)
         }
         if (options.includeCompanions && trip.companions.isNotEmpty()) {
-            out.append("\n\nWith ").append(joinNames(trip.companions.map { it.name }))
+            paragraphs += PostParagraph("With " + joinNames(trip.companions.map { it.name }))
         }
         val notes = cleanNotes(t.notes)
-        if (options.includeTripNotes && notes.isNotEmpty()) out.append("\n\n").append(notes)
-
-        if (options.includeImpressions && trip.impressions.isNotEmpty()) {
-            out.append("\n")
-            trip.impressions.sortedBy { it.timestamp }.forEach { out.append("\n• ").append(it.text.trim()) }
-        }
-        if (options.includeFooter) out.append("\n\n").append(AppLinks.footerText())
-        return out.toString()
+        if (options.includeNotes && notes.isNotEmpty()) paragraphs += PostParagraph(notes)
+        return PostContent(title, facts.joinToString(" · ").ifEmpty { null }, paragraphs)
     }
+
+    /** The text that goes out with a post; the Share tab's preview leaves this off. */
+    fun withFooter(text: String): String = text + "\n\n" + AppLinks.footerText()
+
+    /** "Got stuck (serious): wheel deep in mud". The reason and who else was involved stay private. */
+    internal fun incidentLine(incident: Incident): String {
+        val severity = severityLabel(incident.severity)?.lowercase()?.let { " ($it)" } ?: ""
+        val notes = incident.notes.lines().map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" ")
+        return incident.category.label() + severity + if (notes.isNotEmpty()) ": $notes" else ""
+    }
+
+    /** One line per leg in time order: "Christchurch → Hanmer Springs · motorbike". Long trips keep the first [MAX_LEG_LINES]. */
+    internal fun legLines(legs: List<Leg>): List<String> {
+        val lines = legs.sortedBy { it.startTime }.mapNotNull { leg ->
+            val from = leg.originName.trim()
+            val to = leg.destinationName.trim()
+            if (from.isEmpty() && to.isEmpty()) return@mapNotNull null
+            val places = if (from.isEmpty() || from == to) to else if (to.isEmpty()) from else "$from → $to"
+            val transport = if (leg.transportType == TransportType.OTHER) "" else " · " + transportName(leg.transportType)
+            places + transport
+        }
+        return if (lines.size <= MAX_LEG_LINES) lines else lines.take(MAX_LEG_LINES) + "…and ${lines.size - MAX_LEG_LINES} more"
+    }
+
+    private fun transportName(type: TransportType) = if (type == TransportType.FOUR_WD) "4WD" else type.name.lowercase()
 
     /** The importer stamps trips with "Imported from Google Timeline"; that isn't something to post. */
     internal fun cleanNotes(notes: String): String =
@@ -101,20 +140,7 @@ object PostComposer {
         legs.filter { it.transportType != TransportType.OTHER }
             .groupBy { it.transportType }
             .entries.sortedByDescending { (_, group) -> group.sumOf { (it.endTime ?: it.startTime) - it.startTime } }
-            .joinToString(", ") { (type, _) -> if (type == TransportType.FOUR_WD) "4WD" else type.name.lowercase() }
-
-    /** Where the trip went in order, each stop once in a row; long trips keep the start and end. */
-    internal fun placeChain(legs: List<Leg>): List<String> {
-        val sorted = legs.sortedBy { it.startTime }
-        val chain = mutableListOf<String>()
-        fun add(name: String) {
-            val n = name.trim()
-            if (n.isNotEmpty() && chain.lastOrNull() != n) chain += n
-        }
-        sorted.firstOrNull()?.let { add(it.originName) }
-        sorted.forEach { add(it.destinationName) }
-        return if (chain.size <= MAX_PLACES) chain else chain.take(4) + "…" + chain.takeLast(3)
-    }
+            .joinToString(", ") { (type, _) -> transportName(type) }
 
     internal fun joinNames(names: List<String>): String = when (names.size) {
         0 -> ""
@@ -123,18 +149,18 @@ object PostComposer {
     }
 
     /**
-     * Writes the map and each chosen photo as its own JPEG, map first. Photos are re-drawn from their pixels,
-     * so the location and camera details stored inside the original files are not passed on.
+     * Writes the post as pictures, because Messenger, Facebook and Instagram drop text that comes with a share: first the
+     * written post with the map, then each chosen photo as its own JPEG, then a closing card with the app icon, link and
+     * QR code. Photos are re-drawn from their pixels, so the location and camera details stored inside the originals are
+     * not passed on.
      */
-    suspend fun writeImages(context: Context, map: Bitmap?, photos: List<MediaItem>): List<File> =
+    suspend fun writeImages(context: Context, content: PostContent, map: Bitmap?, photos: List<MediaItem>): List<File> =
         withContext(Dispatchers.IO) {
             val dir = File(context.cacheDir, "share").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
             val files = mutableListOf<File>()
-            if (map != null) {
-                val file = File(dir, "route-map.jpg")
-                file.outputStream().use { map.compress(Bitmap.CompressFormat.JPEG, 90, it) }
-                files += file
-            }
+            val post = File(dir, "post.jpg")
+            ShareComposer.writePostCard(post, content, map)
+            files += post
             photos.forEachIndexed { index, item ->
                 val bitmap = ShareComposer.loadPhoto(context, item, PHOTO_MAX_SIDE) ?: return@forEachIndexed
                 val file = File(dir, "photo-%02d.jpg".format(Locale.US, index + 1))
@@ -142,6 +168,9 @@ object PostComposer {
                 bitmap.recycle()
                 files += file
             }
+            val card = File(dir, "adventure-timeline.jpg")
+            ShareComposer.writeFooterCard(context, card)
+            files += card
             files
         }
 }

@@ -35,11 +35,9 @@ data class ShareOptions(
     val includeRating: Boolean,
     val includeMap: Boolean,
     val includeCompanions: Boolean,
-    val includeTripNotes: Boolean,
-    val includeImpressions: Boolean,
+    val includeNotes: Boolean,
     val photos: List<MediaItem>,
-    val format: ShareFormat,
-    val includeFooter: Boolean = true
+    val format: ShareFormat
 )
 
 class ShareResult(val file: File, val text: String)
@@ -95,17 +93,23 @@ object ShareComposer {
         }
     }
 
-    /** "Made with Adventure Timeline" and its link beside the app icon, closing the picture or PDF. */
-    private class FooterBlock(val icon: Bitmap?) : Block() {
-        private val iconSize = 112f
-        private val gap = 28f
-        private fun textWidth(u: Float, width: Float) = if (icon != null) width - (iconSize + gap) * u else width
-        private fun title(u: Float, width: Float) = layoutFor(AppLinks.FOOTER_TITLE, textPaint(34f * u, INK, bold = true), textWidth(u, width))
-        private fun link(u: Float, width: Float) = layoutFor(AppLinks.WEBSITE, textPaint(28f * u, MUTED), textWidth(u, width))
+    /** "Made with Adventure Timeline" and its link, with the app icon on the left and a QR code for the link on the right. */
+    private class FooterBlock(val icon: Bitmap?, val qr: Bitmap?, val scale: Float = 1f) : Block() {
+        private val iconSize = 112f * scale
+        private val qrSize = 164f * scale
+        private val gap = 28f * scale
+        private fun textWidth(u: Float, width: Float): Float {
+            var w = width
+            if (icon != null) w -= (iconSize + gap) * u
+            if (qr != null) w -= (qrSize + gap) * u
+            return w
+        }
+        private fun title(u: Float, width: Float) = layoutFor(AppLinks.FOOTER_TITLE, textPaint(34f * scale * u, INK, bold = true), textWidth(u, width))
+        private fun link(u: Float, width: Float) = layoutFor(AppLinks.WEBSITE, textPaint(28f * scale * u, MUTED), textWidth(u, width))
         private fun textHeight(u: Float, width: Float) = title(u, width).height + 4f * u + link(u, width).height
 
         override fun height(u: Float, width: Float) =
-            maxOf(if (icon != null) iconSize * u else 0f, textHeight(u, width))
+            maxOf(if (icon != null) iconSize * u else 0f, if (qr != null) qrSize * u else 0f, textHeight(u, width))
 
         override fun draw(canvas: Canvas, u: Float, x: Float, y: Float, width: Float) {
             val h = height(u, width)
@@ -114,6 +118,11 @@ object ShareComposer {
                 val top = y + (h - iconSize * u) / 2f
                 drawRounded(canvas, icon, RectF(x, top, x + iconSize * u, top + iconSize * u), 24f * u, crop = true)
                 left += (iconSize + gap) * u
+            }
+            if (qr != null) {
+                val top = y + (h - qrSize * u) / 2f
+                val right = x + width
+                canvas.drawBitmap(qr, null, RectF(right - qrSize * u, top, right, top + qrSize * u), Paint(Paint.FILTER_BITMAP_FLAG))
             }
             val t = title(u, width)
             val l = link(u, width)
@@ -188,8 +197,7 @@ object ShareComposer {
     suspend fun compose(context: Context, trip: TripDetail, mapBitmap: Bitmap?, options: ShareOptions): ShareResult =
         withContext(Dispatchers.IO) {
             val dateFormat = DateFormat.getDateInstance(DateFormat.LONG)
-            val timeFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
-            val t = trip.trip
+                        val t = trip.trip
 
             val dates = dateFormat.format(Date(t.startDate)) +
                 (t.endDate?.takeIf { it != t.startDate }?.let { " – " + dateFormat.format(Date(it)) } ?: "")
@@ -224,19 +232,10 @@ object ShareComposer {
             // The importer stamps trips with "Imported from Google Timeline"; that's not something to share.
             val notes = t.notes.lines().filterNot { it.contains("Imported from Google Timeline", ignoreCase = true) }
                 .joinToString("\n").trim()
-            if (options.includeTripNotes && notes.isNotEmpty()) {
+            if (options.includeNotes && notes.isNotEmpty()) {
                 blocks += TextBlock("Notes", 32f, MUTED, bold = true, gapBelow = 4f)
                 blocks += TextBlock(notes, 38f, INK, gapBelow = 24f)
                 plain.append("\n\n").append(notes)
-            }
-            if (options.includeImpressions && trip.impressions.isNotEmpty()) {
-                blocks += TextBlock("Impressions", 32f, MUTED, bold = true, gapBelow = 8f)
-                plain.append("\n")
-                trip.impressions.sortedBy { it.timestamp }.forEach { note ->
-                    blocks += TextBlock(timeFormat.format(Date(note.timestamp)), 28f, MUTED, gapBelow = 2f)
-                    blocks += TextBlock(note.text.trim(), 38f, INK, gapBelow = 18f)
-                    plain.append('\n').append(note.text.trim())
-                }
             }
 
             // The PDF stores photos losslessly, so keep them smaller there to keep the file shareable.
@@ -247,11 +246,9 @@ object ShareComposer {
                 if (bitmaps.size == 1) blocks += PhotoRowBlock(bitmaps, 1)
                 else bitmaps.chunked(2).forEach { blocks += PhotoRowBlock(it, 2) }
             }
-            if (options.includeFooter) {
-                blocks += SpacerBlock(18f)
-                blocks += FooterBlock(loadAppIcon(context))
-                plain.append("\n\n").append(AppLinks.footerText())
-            }
+            blocks += SpacerBlock(18f)
+            blocks += FooterBlock(loadAppIcon(context), loadQr(context), if (options.format == ShareFormat.PDF) 0.75f else 1f)
+            plain.append("\n\n").append(AppLinks.footerText())
 
             val dir = File(context.cacheDir, "share").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
             val safeName = t.title.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').take(40).ifEmpty { "trip" }
@@ -268,6 +265,32 @@ object ShareComposer {
     private fun loadAppIcon(context: Context): Bitmap? = runCatching {
         val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
         android.graphics.BitmapFactory.decodeResource(context.resources, net.jonesie.traveldiary.R.drawable.splash_icon, options)
+    }.getOrNull()
+
+    private const val INCIDENT = 0xFFB3470F.toInt()
+
+    /** The written post as one picture: title, facts, the map, then the text, with incidents picked out in colour. */
+    internal fun writePostCard(file: File, content: PostContent, mapBitmap: Bitmap?) {
+        val blocks = mutableListOf<Block>()
+        blocks += TextBlock(content.title, 68f, INK, bold = true, gapBelow = 10f)
+        if (content.facts != null) blocks += TextBlock(content.facts, 36f, MUTED, gapBelow = 24f) else blocks += SpacerBlock(14f)
+        if (mapBitmap != null) blocks += MapBlock(mapBitmap)
+        content.paragraphs.forEach { blocks += TextBlock(it.text, 40f, if (it.accent) INCIDENT else INK, bold = it.accent, gapBelow = 24f) }
+        writeImage(file, blocks)
+    }
+
+    /** The footer on its own, as the last picture of a post. */
+    internal fun writeFooterCard(context: Context, file: File) {
+        val icon = loadAppIcon(context)
+        val qr = loadQr(context)
+        writeImage(file, listOf(FooterBlock(icon, qr)))
+        icon?.recycle()
+        qr?.recycle()
+    }
+
+    /** A QR code for [AppLinks.WEBSITE]; regenerate res/drawable-nodpi/qr_website.png if that link changes. */
+    private fun loadQr(context: Context): Bitmap? = runCatching {
+        android.graphics.BitmapFactory.decodeResource(context.resources, net.jonesie.traveldiary.R.drawable.qr_website)
     }.getOrNull()
 
     private fun writeImage(file: File, blocks: List<Block>) {
