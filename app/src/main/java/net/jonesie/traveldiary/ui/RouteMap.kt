@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -250,11 +251,16 @@ fun RouteMap(
     if (allPoints.isEmpty()) return
 
     val waypoints = remember(legs) { buildWaypoints(legs) }
-    var showWaypoints by rememberSaveable { mutableStateOf(false) }
+    val savedMapState = viewModel.routeMapViewState
+    var showWaypoints by remember { mutableStateOf(savedMapState.showWaypoints) }
     val shownWaypoints = if (showWaypoints) waypoints else emptyList()
     val allPins = remember(media) { photoPinsFor(tripId, media) }
-    var showPhotos by rememberSaveable { mutableStateOf(true) }
+    var showPhotos by remember { mutableStateOf(savedMapState.showPhotos) }
     val shownPins = if (showPhotos) allPins else emptyList()
+    SideEffect {
+        savedMapState.showWaypoints = showWaypoints
+        savedMapState.showPhotos = showPhotos
+    }
     val incidentPins = remember(incidents) { incidents.filter { it.lat != null && it.lon != null } }
     var showIncidents by rememberSaveable { mutableStateOf(true) }
     val shownIncidents = if (showIncidents) incidentPins else emptyList()

@@ -773,6 +773,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
     )
 
     val mapViewState = MapViewState(prefs)
+    val routeMapViewState = RouteMapViewState(prefs)
 
     private val _listSort = MutableStateFlow(
         ListSort(
@@ -955,6 +956,26 @@ class MapViewState(private val prefs: android.content.SharedPreferences) {
         handler.removeCallbacks(save)
         handler.postDelayed(save, 500)
     }
+}
+
+/**
+ * What the per-trip map (trip detail, full-screen map, share preview) was showing. Shared across
+ * every trip and saved to preferences, so the filters stay as they were left rather than resetting
+ * on every trip or app restart.
+ */
+class RouteMapViewState(private val prefs: android.content.SharedPreferences) {
+    var showWaypoints: Boolean = prefs.getBoolean("tripMapWaypoints", false)
+        set(value) {
+            if (field == value) return
+            field = value
+            prefs.edit().putBoolean("tripMapWaypoints", value).apply()
+        }
+    var showPhotos: Boolean = prefs.getBoolean("tripMapPhotos", true)
+        set(value) {
+            if (field == value) return
+            field = value
+            prefs.edit().putBoolean("tripMapPhotos", value).apply()
+        }
 }
 
 enum class SortBy(val label: String) { DATE("Date"), RATING("Rating") }
