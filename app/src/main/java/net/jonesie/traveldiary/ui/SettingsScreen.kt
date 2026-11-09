@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -120,6 +121,40 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
     fun openLink(url: String) {
         runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
     }
+    fun shareApp() {
+        scope.launch {
+            runCatching {
+                val playStoreUrl = "https://play.google.com/store/apps/details?id=${context.packageName}"
+                val message = "Check out Adventure Timeline, the app I use to track and relive my road trips: $playStoreUrl"
+                val iconFile = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val icon = context.packageManager.getApplicationIcon(context.packageName)
+                    val width = icon.intrinsicWidth.takeIf { it > 0 } ?: 192
+                    val height = icon.intrinsicHeight.takeIf { it > 0 } ?: 192
+                    val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+                    icon.setBounds(0, 0, width, height)
+                    icon.draw(android.graphics.Canvas(bitmap))
+                    val dir = java.io.File(context.cacheDir, "share").apply { mkdirs() }
+                    java.io.File(dir, "app-icon.png").apply {
+                        java.io.FileOutputStream(this).use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                    }
+                }
+                val uri = androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".fileprovider", iconFile)
+                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "image/png"
+                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                    putExtra(android.content.Intent.EXTRA_TEXT, message)
+                    clipData = android.content.ClipData.newRawUri("Adventure Timeline", uri)
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                // Messenger, Instagram etc. attach the image but drop EXTRA_TEXT, so also put the message
+                // on the clipboard (same workaround as sharePost in ShareTab.kt).
+                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Adventure Timeline", message))
+                context.startActivity(android.content.Intent.createChooser(send, "Share Adventure Timeline"))
+                android.widget.Toast.makeText(context, "Message copied. If the app you share to leaves it out, paste it into the caption.", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+    }
     fun runLink() {
         scope.launch {
             val (linked, total) = viewModel.linkCompanionsToContacts()
@@ -167,6 +202,12 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
                 title = "Check for updates",
                 subtitle = "You have version $installedVersion. Looks online for a newer release, only when you tap this.",
                 onClick = { checkForUpdates() }
+            )
+            SettingRow(
+                icon = { Icon(Icons.Filled.Share, contentDescription = null) },
+                title = "Share app",
+                subtitle = "Tell a friend about Adventure Timeline with the app icon and a link to its Google Play listing.",
+                onClick = { shareApp() }
             )
 
             SectionHeader("Appearance")
