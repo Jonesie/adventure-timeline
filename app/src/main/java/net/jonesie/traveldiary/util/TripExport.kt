@@ -29,7 +29,9 @@ data class TripExportOptions(
     val includeVideos: Boolean = false,
     val includeAudio: Boolean = false,
     /** A picture of the route map, when the Share tab has one to hand. */
-    val mapImage: Bitmap? = null
+    val mapImage: Bitmap? = null,
+    /** Everything in this area is left out of the data: route points, stops, and the positions of photos and incidents. */
+    val hidden: HiddenArea? = null
 )
 
 class TripExportResult(val file: File, val mediaFiles: Int, val mediaMissing: Int, val placesLookedUp: Int)
@@ -83,7 +85,9 @@ object TripExport {
             val resolver = context.contentResolver
             val t = trip.trip
             val legs = trip.legs.sortedBy { it.startTime }
-            val trail = dao.getRoutePointsForTrip(t.id).sortedBy { it.timestamp }
+            val hidden = options.hidden
+            fun isHidden(lat: Double?, lon: Double?) = hidden?.contains(lat, lon) == true
+            val trail = dao.getRoutePointsForTrip(t.id).sortedBy { it.timestamp }.filterNot { isHidden(it.lat, it.lon) }
             val wanted = trip.media.filter {
                 when (it.type) {
                     MediaType.PHOTO -> options.includePhotos
@@ -96,7 +100,7 @@ object TripExport {
             val places = HashMap<String, String?>()
             var lookups = 0
             fun placeFor(lat: Double?, lon: Double?): String? {
-                if (lat == null || lon == null || !hasPosition(lat, lon)) return null
+                if (lat == null || lon == null || !hasPosition(lat, lon) || isHidden(lat, lon)) return null
                 val key = "%.3f,%.3f".format(Locale.US, lat, lon)
                 if (places.containsKey(key)) return places[key]
                 if (lookups >= MAX_PLACE_LOOKUPS) return null
@@ -166,11 +170,15 @@ object TripExport {
                     km?.let { w.put("distanceKm", Math.round(it * 100) / 100.0) }
                     w.put("difficulty", leg.difficulty.toLong())
                     w.put("enjoyment", leg.enjoyment.toLong())
+                    val fromHidden = isHidden(leg.originLat, leg.originLon)
                     w.name("from").beginObject()
-                    w.put("name", leg.originName); w.put("lat", leg.originLat); w.put("lon", leg.originLon)
+                    w.put("name", if (fromHidden) "home" else leg.originName)
+                    if (!fromHidden) { w.put("lat", leg.originLat); w.put("lon", leg.originLon) }
                     w.endObject()
+                    val toHidden = isHidden(leg.destinationLat, leg.destinationLon)
                     w.name("to").beginObject()
-                    w.put("name", leg.destinationName); w.put("lat", leg.destinationLat); w.put("lon", leg.destinationLon)
+                    w.put("name", if (toHidden) "home" else leg.destinationName)
+                    if (!toHidden) { w.put("lat", leg.destinationLat); w.put("lon", leg.destinationLon) }
                     w.endObject()
                     w.endObject()
                 }
@@ -181,7 +189,7 @@ object TripExport {
                 w.name("stops").beginArray()
                 var stop = 0L
                 fun stopOf(name: String, lat: Double?, lon: Double?, time: Long?) {
-                    if (lat == null || lon == null) return
+                    if (lat == null || lon == null || isHidden(lat, lon)) return
                     w.beginObject()
                     w.put("index", ++stop)
                     w.put("name", name); w.put("lat", lat); w.put("lon", lon)
@@ -218,7 +226,7 @@ object TripExport {
                     w.put("leg", legIndexOf(inc.legId))
                     // Where it happened, in its own right: a video of it can run well before and after the
                     // moment itself. Fall back to where the trail was at that time if no position was saved.
-                    val own = hasPosition(inc.lat, inc.lon)
+                    val own = hasPosition(inc.lat, inc.lon) && !isHidden(inc.lat, inc.lon)
                     val from = if (own) null else trailPointAt(trail, inc.timestamp)
                     val lat = if (own) inc.lat else from?.lat
                     val lon = if (own) inc.lon else from?.lon
@@ -245,7 +253,7 @@ object TripExport {
                     w.putTime("time", m.timestamp)
                     w.put("caption", m.caption)
                     // The file's own position if it has one, else where the trail was at that moment.
-                    val own = hasPosition(m.lat, m.lon)
+                    val own = hasPosition(m.lat, m.lon) && !isHidden(m.lat, m.lon)
                     val from = if (own) null else trailPointAt(trail, m.timestamp)
                     val lat = if (own) m.lat else from?.lat
                     val lon = if (own) m.lon else from?.lon

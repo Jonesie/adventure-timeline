@@ -143,6 +143,21 @@ class PostComposerTest {
     }
 
     @Test
+    fun placesInsideTheHiddenAreaAreWrittenAsHome() {
+        val legs = listOf(
+            leg(TransportType.MOTORBIKE, "12 Real Street", "Hanmer Springs", 0, 3).copy(
+                originLat = -43.50, originLon = 172.60, destinationLat = -42.52, destinationLon = 172.83
+            ),
+            leg(TransportType.CAR, "Hanmer Springs", "12 Real Street", 30, 1).copy(
+                originLat = -42.52, originLon = 172.83, destinationLat = -43.505, destinationLon = 172.605
+            )
+        )
+        val lines = PostComposer.legLines(legs, HiddenArea(-43.50, 172.60, 2.0))
+        assertEquals(listOf("home → Hanmer Springs · motorbike", "Hanmer Springs → home · car"), lines)
+        assertEquals(listOf("12 Real Street → Hanmer Springs · motorbike", "Hanmer Springs → 12 Real Street · car"), PostComposer.legLines(legs))
+    }
+
+    @Test
     fun aLongLegListIsCut() {
         val legs = (0 until 20).map { leg(TransportType.CAR, "S$it", "S${it + 1}", it * 2L, 1) }
         val lines = PostComposer.legLines(legs)

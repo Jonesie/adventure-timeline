@@ -43,6 +43,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.doOnLayout
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.Leg
+import net.jonesie.traveldiary.util.HiddenArea
 import net.jonesie.traveldiary.data.RoutePoint
 import net.jonesie.traveldiary.data.TransportType
 import net.jonesie.traveldiary.util.RouteShape
@@ -237,31 +238,53 @@ fun RouteMap(
     incidents: List<Incident> = emptyList(),
     onOpenMedia: ((Int) -> Unit)? = null,
     onMapView: ((MapView) -> Unit)? = null,
-    onMapExport: ((MapExport) -> Unit)? = null
+    onMapExport: ((MapExport) -> Unit)? = null,
+    hidden: HiddenArea? = null
 ) {
     // Newly read locations flow back through the trip's media list, so nothing to do when it finishes.
     BackfillMediaLocations(viewModel) {}
     var routePoints by remember(tripId) { mutableStateOf<List<RoutePoint>>(emptyList()) }
     LaunchedEffect(tripId) { routePoints = viewModel.routePointsFor(tripId) }
 
-    val segments = remember(routePoints, legs) {
+    val fullSegments = remember(routePoints, legs) {
         if (routePoints.isNotEmpty()) segmentsFromTrail(routePoints, legs) else segmentsFromLegs(legs)
+    }
+    // Everything inside the hidden area is left out of the map itself, so the preview, the shared picture and
+    // the start/end dots all agree, and the map frames only what is left.
+    val segments = remember(fullSegments, hidden) {
+        if (hidden == null) fullSegments else fullSegments.flatMap { segment ->
+            val parts = mutableListOf<MutableList<GeoPoint>>()
+            var current = mutableListOf<GeoPoint>()
+            segment.points.forEach { p ->
+                if (hidden.contains(p.latitude, p.longitude)) {
+                    if (current.isNotEmpty()) { parts += current; current = mutableListOf() }
+                } else current.add(p)
+            }
+            if (current.isNotEmpty()) parts += current
+            parts.filter { it.size > 1 }.map { segment.copy(points = it) }
+        }
     }
     val allPoints = remember(segments) { segments.flatMap { it.points } }
     if (allPoints.isEmpty()) return
 
-    val waypoints = remember(legs) { buildWaypoints(legs) }
+    val waypoints = remember(legs, hidden) {
+        buildWaypoints(legs).filterNot { hidden != null && hidden.contains(it.point.latitude, it.point.longitude) }
+    }
     val savedMapState = viewModel.routeMapViewState
     var showWaypoints by remember { mutableStateOf(savedMapState.showWaypoints) }
     val shownWaypoints = if (showWaypoints) waypoints else emptyList()
-    val allPins = remember(media) { photoPinsFor(tripId, media) }
+    val allPins = remember(media, hidden) {
+        photoPinsFor(tripId, media).filterNot { hidden != null && hidden.contains(it.point.latitude, it.point.longitude) }
+    }
     var showPhotos by remember { mutableStateOf(savedMapState.showPhotos) }
     val shownPins = if (showPhotos) allPins else emptyList()
     SideEffect {
         savedMapState.showWaypoints = showWaypoints
         savedMapState.showPhotos = showPhotos
     }
-    val incidentPins = remember(incidents) { incidents.filter { it.lat != null && it.lon != null } }
+    val incidentPins = remember(incidents, hidden) {
+        incidents.filter { it.lat != null && it.lon != null && !(hidden != null && hidden.contains(it.lat, it.lon)) }
+    }
     var showIncidents by rememberSaveable { mutableStateOf(true) }
     val shownIncidents = if (showIncidents) incidentPins else emptyList()
     val latestOpen by rememberUpdatedState(onOpenMedia)

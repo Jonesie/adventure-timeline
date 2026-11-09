@@ -25,7 +25,12 @@ enum class ShareFormat(val label: String, val mimeType: String, val extension: S
     /** Written caption plus the map and photos as separate pictures; see [PostComposer]. */
     POST("Post", "image/jpeg", "jpg"),
     IMAGE("Picture", "image/jpeg", "jpg"),
-    PDF("PDF", "application/pdf", "pdf")
+    PDF("PDF", "application/pdf", "pdf"),
+    /** The route as a file for mapping apps; see [TripTrack]. */
+    GPX("GPX", "application/gpx+xml", "gpx"),
+    KML("KML", "application/vnd.google-earth.kml+xml", "kml");
+
+    val isTrack: Boolean get() = this == GPX || this == KML
 }
 
 data class ShareOptions(
@@ -256,6 +261,7 @@ object ShareComposer {
             when (options.format) {
                 ShareFormat.IMAGE, ShareFormat.POST -> writeImage(file, blocks)
                 ShareFormat.PDF -> writePdf(file, blocks)
+                ShareFormat.GPX, ShareFormat.KML -> throw IllegalArgumentException("Tracks are written by TripTrack")
             }
             bitmaps.forEach { it.recycle() }
             ShareResult(file, plain.toString())

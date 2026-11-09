@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.launch
 import net.jonesie.traveldiary.data.MediaType
+import net.jonesie.traveldiary.util.HiddenArea
 import net.jonesie.traveldiary.util.TripExport
 import net.jonesie.traveldiary.util.TripExportOptions
 import org.osmdroid.views.MapView
@@ -70,6 +71,9 @@ fun TripDataExportScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: 
     val homeSettings by viewModel.homeSettings.collectAsState()
     var homeCentre by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     LaunchedEffect(homeSettings) { homeCentre = viewModel.homeCentre() }
+    val hiddenArea = remember(homeCentre, hideHome, homeSettings.radiusKm) {
+        homeCentre?.takeIf { hideHome }?.let { (lat, lon) -> HiddenArea(lat, lon, homeSettings.radiusKm.toDouble()) }
+    }
 
     Scaffold(
         topBar = {
@@ -100,8 +104,8 @@ fun TripDataExportScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: 
                 SwitchRow("Videos ($videoCount), can be large", includeVideos) { includeVideos = it }
                 SwitchRow("Voice notes ($audioCount)", includeAudio) { includeAudio = it }
                 SwitchRow("Picture of the route map", includeMap) { includeMap = it }
-                if (includeMap && homeCentre != null) {
-                    SwitchRow("Hide my home area (${homeSettings.radiusKm} km) from the map picture", hideHome) { hideHome = it }
+                if (homeCentre != null) {
+                    SwitchRow("Hide my home area (${homeSettings.radiusKm} km) from the map and the data", hideHome) { hideHome = it }
                 }
             }
 
@@ -117,7 +121,8 @@ fun TripDataExportScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: 
                     modifier = Modifier.fillMaxWidth().height(200.dp).padding(top = 4.dp),
                     media = trip.sortedMedia(),
                     onMapView = { mapView = it },
-                    onMapExport = { mapExport = it }
+                    onMapExport = { mapExport = it },
+                    hidden = hiddenArea
                 )
             }
 
@@ -127,13 +132,10 @@ fun TripDataExportScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: 
                     progress = "Preparing…"
                     scope.launch {
                         try {
-                            val shownExport = homeCentre?.takeIf { hideHome }?.let { (lat, lon) ->
-                                mapExport?.withoutArea(lat, lon, homeSettings.radiusKm.toDouble())
-                            } ?: mapExport
-                            val snapshot = if (includeMap) mapView?.let { captureMapImage(it, shownExport, dark) } else null
+                            val snapshot = if (includeMap) mapView?.let { captureMapImage(it, mapExport, dark) } else null
                             val result = TripExport.export(
                                 context, trip,
-                                TripExportOptions(includePhotos, includeVideos, includeAudio, snapshot)
+                                TripExportOptions(includePhotos, includeVideos, includeAudio, snapshot, hiddenArea)
                             ) { progress = it }
                             val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", result.file)
                             val send = Intent(Intent.ACTION_SEND).apply {

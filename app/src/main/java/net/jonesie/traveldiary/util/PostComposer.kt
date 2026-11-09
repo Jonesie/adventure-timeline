@@ -26,7 +26,9 @@ data class PostOptions(
     val includeLegs: Boolean,
     val includeIncidents: Boolean,
     val includeCompanions: Boolean,
-    val includeNotes: Boolean
+    val includeNotes: Boolean,
+    /** Places inside this area are written as "home" rather than by name. */
+    val hidden: HiddenArea? = null
 )
 
 /** One block of a post. [accent] marks the incident highlights. */
@@ -71,7 +73,7 @@ object PostComposer {
         val paragraphs = mutableListOf<PostParagraph>()
         if (options.message.isNotBlank()) paragraphs += PostParagraph(options.message.trim())
 
-        val legLines = if (options.includeLegs) legLines(trip.legs) else emptyList()
+        val legLines = if (options.includeLegs) legLines(trip.legs, options.hidden) else emptyList()
         if (legLines.isNotEmpty()) paragraphs += PostParagraph("Legs:" + legLines.joinToString("") { "\n• $it" })
         if (options.includeIncidents && trip.incidents.isNotEmpty()) {
             val lines = trip.incidents.sortedBy { it.timestamp }.joinToString("") { "\n⚠ " + incidentLine(it) }
@@ -96,10 +98,10 @@ object PostComposer {
     }
 
     /** One line per leg in time order: "Christchurch → Hanmer Springs · motorbike". Long trips keep the first [MAX_LEG_LINES]. */
-    internal fun legLines(legs: List<Leg>): List<String> {
+    internal fun legLines(legs: List<Leg>, hidden: HiddenArea? = null): List<String> {
         val lines = legs.sortedBy { it.startTime }.mapNotNull { leg ->
-            val from = leg.originName.trim()
-            val to = leg.destinationName.trim()
+            val from = if (hidden?.contains(leg.originLat, leg.originLon) == true) "home" else leg.originName.trim()
+            val to = if (hidden?.contains(leg.destinationLat, leg.destinationLon) == true) "home" else leg.destinationName.trim()
             if (from.isEmpty() && to.isEmpty()) return@mapNotNull null
             val places = if (from.isEmpty() || from == to) to else if (to.isEmpty()) from else "$from → $to"
             val transport = if (leg.transportType == TransportType.OTHER) "" else " · " + transportName(leg.transportType)
