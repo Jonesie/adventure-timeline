@@ -64,7 +64,6 @@ import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
-import androidx.compose.runtime.SideEffect
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
@@ -217,12 +216,6 @@ fun AllTripsMapScreen(
     var showIncidents by remember { mutableStateOf(true) }
     val allIncidents by viewModel.incidents.collectAsState()
     val incidentsWithPlace = remember(allIncidents) { allIncidents.filter { it.lat != null && it.lon != null } }
-    SideEffect {
-        saved.selectedTripId = selectedId
-        saved.showWaypoints = showWaypoints
-        saved.types = types
-        saved.showPhotos = showPhotos
-    }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { routes = viewModel.allTripRoutes() }
     // Photo locations are read in the background; reload once they're in so pins appear.
@@ -287,7 +280,7 @@ fun AllTripsMapScreen(
                 incidents = shownIncidents,
                 onOpenPin = { onOpenMedia(it.tripId, it.index) },
                 onMapReady = { mapRef = it },
-                onSelect = { selectedId = it }
+                onSelect = { selectedId = it; saved.selectedTripId = it }
             )
 
             Column(modifier = Modifier.align(Alignment.TopStart).fillMaxWidth()) {
@@ -305,7 +298,7 @@ fun AllTripsMapScreen(
                     val tick: @Composable () -> Unit = { Icon(Icons.Filled.Check, contentDescription = null) }
                     FilterChip(
                         selected = showWaypoints,
-                        onClick = { showWaypoints = !showWaypoints },
+                        onClick = { showWaypoints = !showWaypoints; saved.showWaypoints = showWaypoints },
                         label = { Text("Waypoints") },
                         leadingIcon = if (showWaypoints) tick else { { Icon(Icons.Filled.Place, contentDescription = null) } },
                         colors = chipColors
@@ -313,7 +306,7 @@ fun AllTripsMapScreen(
                     if (hasPins) {
                         FilterChip(
                             selected = showPhotos,
-                            onClick = { showPhotos = !showPhotos },
+                            onClick = { showPhotos = !showPhotos; saved.showPhotos = showPhotos },
                             label = { Text("Photos") },
                             leadingIcon = if (showPhotos) tick else { { Icon(Icons.Filled.Image, contentDescription = null) } },
                             colors = chipColors
@@ -330,7 +323,7 @@ fun AllTripsMapScreen(
                     }
                     FilterChip(
                         selected = types.isEmpty(),
-                        onClick = { types = emptySet() },
+                        onClick = { types = emptySet(); saved.types = types },
                         label = { Text("All transport") },
                         leadingIcon = if (types.isEmpty()) tick else null,
                         colors = chipColors
@@ -338,7 +331,10 @@ fun AllTripsMapScreen(
                     presentTypes.forEach { type ->
                         FilterChip(
                             selected = type in types,
-                            onClick = { types = if (type in types) types - type else types + type },
+                            onClick = {
+                                types = if (type in types) types - type else types + type
+                                saved.types = types
+                            },
                             label = { Text(type.displayName()) },
                             leadingIcon = if (type in types) tick else null,
                             colors = chipColors
