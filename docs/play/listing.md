@@ -45,8 +45,9 @@ an injury. Record how bad it was, who was involved and why, with notes and photo
 maps and in your stats, so the lessons stay with the trip.
 
 SHARE YOUR JOURNEY
-Compose a trip post with the route map, a caption and your best photos, then share it through any app. Or
-export a single picture or a PDF. You can hide your home area from shared maps.
+Compose a trip post with the route map, a caption, your incidents and your best photos, then share it through
+any app. Or export a single picture, a PDF, or the route as a GPX or KML file. You can hide your home area from
+shared maps.
 
 SEARCH, STATS AND MEMORIES
 • Search your diary by title, place name, or near where you are now
