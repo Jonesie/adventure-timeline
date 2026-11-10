@@ -224,7 +224,8 @@ private fun TravelDiaryApp() {
             arguments = listOf(navArgument("tripId") { type = NavType.LongType })
         ) { backStackEntry ->
             val tripId = backStackEntry.arguments?.getLong("tripId") ?: return@composable
-            var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
+            // Saveable: the camera app can get the system to reclaim ours, and the result then arrives in a fresh process.
+            var pendingPhotoUri by rememberSaveable { mutableStateOf<Uri?>(null) }
 
             val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
                 if (success) {
@@ -235,7 +236,7 @@ private fun TravelDiaryApp() {
                     }
                 }
             }
-            var pendingVideoUri by remember { mutableStateOf<Uri?>(null) }
+            var pendingVideoUri by rememberSaveable { mutableStateOf<Uri?>(null) }
             var afterCameraPermission by remember { mutableStateOf<(() -> Unit)?>(null) }
             val scope = rememberCoroutineScope()
 
