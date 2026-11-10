@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
@@ -155,6 +156,17 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
             }
         }
     }
+    fun sendFeedback() {
+        runCatching {
+            val body = "\n\n---\nVersion $installedVersion, Android ${android.os.Build.VERSION.RELEASE}"
+            // Subject and body go in the mailto: URI itself; many email apps ignore EXTRA_TEXT on ACTION_SENDTO.
+            val uri = android.net.Uri.parse(
+                "mailto:adventuretimeline@jonesie.net.nz?subject=" + android.net.Uri.encode("Adventure Timeline feedback") +
+                    "&body=" + android.net.Uri.encode(body)
+            )
+            context.startActivity(android.content.Intent(android.content.Intent.ACTION_SENDTO, uri))
+        }.onFailure { result = "No email app found to send feedback." }
+    }
     fun runLink() {
         scope.launch {
             val (linked, total) = viewModel.linkCompanionsToContacts()
@@ -208,6 +220,12 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
                 title = "Share app",
                 subtitle = "Tell a friend about Adventure Timeline with the app icon and a link to its Google Play listing.",
                 onClick = { shareApp() }
+            )
+            SettingRow(
+                icon = { Icon(Icons.Filled.Email, contentDescription = null) },
+                title = "Send feedback",
+                subtitle = "Opens your email app with a new message to adventuretimeline@jonesie.net.nz. Report a bug, suggest a feature, or just say hello.",
+                onClick = { sendFeedback() }
             )
 
             SectionHeader("Appearance")
