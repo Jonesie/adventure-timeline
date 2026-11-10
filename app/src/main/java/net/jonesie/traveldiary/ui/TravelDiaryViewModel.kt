@@ -774,6 +774,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
 
     val mapViewState = MapViewState(prefs)
     val routeMapViewState = RouteMapViewState(prefs)
+    val shareViewState = ShareViewState(prefs)
 
     private val _listSort = MutableStateFlow(
         ListSort(
@@ -976,6 +977,30 @@ class RouteMapViewState(private val prefs: android.content.SharedPreferences) {
             field = value
             prefs.edit().putBoolean("tripMapPhotos", value).apply()
         }
+}
+
+/**
+ * Which facts the Share tab includes, kept across trips and restarts so they don't reset every time. The
+ * message, title, photos, trip notes (depends on the trip) and hide-home (stays on unless switched off)
+ * are deliberately not remembered.
+ */
+class ShareViewState(private val prefs: android.content.SharedPreferences) {
+    var includeDates: Boolean by flag("shareDates", true)
+    var includeRating: Boolean by flag("shareRating", true)
+    var includeCompanions: Boolean by flag("shareCompanions", false)
+    var includeRoute: Boolean by flag("shareRoute", true)
+    var includeLegs: Boolean by flag("shareLegs", false)
+    var includeIncidents: Boolean by flag("shareIncidents", false)
+
+    private fun flag(key: String, default: Boolean) = object : kotlin.properties.ReadWriteProperty<Any?, Boolean> {
+        private var value = prefs.getBoolean(key, default)
+        override fun getValue(thisRef: Any?, property: kotlin.reflect.KProperty<*>) = value
+        override fun setValue(thisRef: Any?, property: kotlin.reflect.KProperty<*>, value: Boolean) {
+            if (this.value == value) return
+            this.value = value
+            prefs.edit().putBoolean(key, value).apply()
+        }
+    }
 }
 
 enum class SortBy(val label: String) { DATE("Date"), RATING("Rating") }
