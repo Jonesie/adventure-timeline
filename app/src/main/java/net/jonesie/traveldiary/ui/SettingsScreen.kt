@@ -103,6 +103,7 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
     var confirmRestore by remember { mutableStateOf(false) }
     var confirmDeleteAll by remember { mutableStateOf(false) }
     var showReasons by remember { mutableStateOf(false) }
+    var showCompanions by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<String?>(null) }
     var copyMatches by remember { mutableStateOf<List<DuplicateCopies.Match>?>(null) }
     val scope = rememberCoroutineScope()
@@ -281,6 +282,12 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
                 subtitle = "Match the names you've typed to people in your phone's contacts (including Google contacts), so you can open their contact card from a trip.",
                 onClick = { linkCompanions() }
             )
+            SettingRow(
+                icon = { Icon(Icons.Filled.People, contentDescription = null) },
+                title = "Companions",
+                subtitle = "See everyone you've named on a trip or incident, and delete anyone you no longer want listed.",
+                onClick = { showCompanions = true }
+            )
 
             SectionHeader("Incidents")
             SettingRow(
@@ -321,6 +328,7 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
         }
     }
 
+    if (showCompanions) CompanionsDialog(viewModel, onDismiss = { showCompanions = false })
     if (showReasons) IncidentReasonsDialog(viewModel, onDismiss = { showReasons = false })
 
     if (showBackupOptions) {

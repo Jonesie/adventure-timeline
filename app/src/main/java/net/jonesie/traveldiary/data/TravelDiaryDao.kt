@@ -108,6 +108,29 @@ interface TravelDiaryDao {
     @Insert
     suspend fun insertTripCompanionCrossRef(crossRef: TripCompanionCrossRef)
 
+    @Query("DELETE FROM trip_companions WHERE tripId = :tripId AND companionId = :companionId")
+    suspend fun removeCompanionFromTrip(tripId: Long, companionId: Long)
+
+    @Query("DELETE FROM trip_companions WHERE companionId = :companionId")
+    suspend fun clearCompanionTrips(companionId: Long)
+
+    @Query("DELETE FROM incident_people WHERE companionId = :companionId")
+    suspend fun clearCompanionIncidents(companionId: Long)
+
+    @Query("DELETE FROM companions WHERE id = :companionId")
+    suspend fun deleteCompanionRow(companionId: Long)
+
+    /** Deletes a companion and every link to a trip or incident. The trips and incidents themselves stay. */
+    @androidx.room.Transaction
+    suspend fun deleteCompanion(companionId: Long) {
+        clearCompanionTrips(companionId)
+        clearCompanionIncidents(companionId)
+        deleteCompanionRow(companionId)
+    }
+
+    @Query("SELECT * FROM trip_companions")
+    fun observeTripCompanionRefs(): Flow<List<TripCompanionCrossRef>>
+
     @Insert
     suspend fun insertLeg(leg: Leg): Long
 

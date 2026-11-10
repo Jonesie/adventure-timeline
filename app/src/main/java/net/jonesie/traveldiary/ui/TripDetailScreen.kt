@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.AddRoad
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsBoat
@@ -356,6 +357,21 @@ private fun ColumnScope.OverviewTab(
         Text("None logged", modifier = Modifier.padding(bottom = 12.dp))
     } else {
         val context = LocalContext.current
+        var removing by remember { mutableStateOf<net.jonesie.traveldiary.data.Companion?>(null) }
+        removing?.let { person ->
+            AlertDialog(
+                onDismissRequest = { removing = null },
+                title = { Text("Remove ${person.name}?") },
+                text = { Text("They'll be taken off this trip only. To delete them everywhere, use Settings > Companions.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.removeCompanionFromTrip(tripId, person.id)
+                        removing = null
+                    }) { Text("Remove") }
+                },
+                dismissButton = { TextButton(onClick = { removing = null }) { Text("Cancel") } }
+            )
+        }
         FlowRow(
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
             modifier = Modifier.padding(bottom = 12.dp)
@@ -374,6 +390,13 @@ private fun ColumnScope.OverviewTab(
                     enabled = linked,
                     label = { Text(person.name) },
                     leadingIcon = { Icon(if (linked) Icons.Filled.Person else Icons.Outlined.PersonOutline, contentDescription = null) },
+                    trailingIcon = {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "Remove ${person.name} from this trip",
+                            modifier = Modifier.size(18.dp).clickable { removing = person }
+                        )
+                    },
                     colors = AssistChipDefaults.assistChipColors(
                         disabledLabelColor = MaterialTheme.colorScheme.onSurface,
                         disabledLeadingIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
