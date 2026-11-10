@@ -97,15 +97,16 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
     var mapExport by remember { mutableStateOf<MapExport?>(null) }
     var includeMap by remember { mutableStateOf(true) }
     var mapShown by rememberSaveable { mutableStateOf(true) }
-    var includeDates by remember { mutableStateOf(true) }
-    var includeRating by remember { mutableStateOf(true) }
-    var includeCompanions by remember { mutableStateOf(false) }
+    val saved = viewModel.shareViewState
+    var includeDates by remember { mutableStateOf(saved.includeDates) }
+    var includeRating by remember { mutableStateOf(saved.includeRating) }
+    var includeCompanions by remember { mutableStateOf(saved.includeCompanions) }
     var includeNotes by remember { mutableStateOf(PostComposer.cleanNotes(trip.trip.notes).isNotEmpty()) }
     var selectedPhotos by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var format by remember { mutableStateOf(ShareFormat.POST) }
-    var includeRoute by remember { mutableStateOf(true) }
-    var includeLegs by remember { mutableStateOf(false) }
-    var includeIncidents by remember { mutableStateOf(false) }
+    var includeRoute by remember { mutableStateOf(saved.includeRoute) }
+    var includeLegs by remember { mutableStateOf(saved.includeLegs) }
+    var includeIncidents by remember { mutableStateOf(saved.includeIncidents) }
     var showPreview by remember { mutableStateOf(false) }
     var routeKm by remember { mutableStateOf<Double?>(null) }
     LaunchedEffect(tripId, trip.legs) {
@@ -183,7 +184,7 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
             if (homeCentre != null) {
                 item { SwitchRow("Hide my home area (${homeSettings.radiusKm} km) from the track", hideHome) { hideHome = it } }
             }
-            item { SwitchRow("Incidents (${trip.incidents.size} logged, as waypoints)", includeIncidents) { includeIncidents = it } }
+            item { SwitchRow("Incidents (${trip.incidents.size} logged, as waypoints)", includeIncidents) { includeIncidents = it; saved.includeIncidents = it } }
             item {
                 Text(
                     "The route you recorded, with the places you went and any incidents as waypoints, for mapping apps, GPS units and Google Earth.",
@@ -198,14 +199,14 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                 item { SwitchRow("Hide my home area (${homeSettings.radiusKm} km) from the map and leg list", hideHome) { hideHome = it } }
             }
             item { SectionHeader("Trip facts") }
-            item { SwitchRow("Dates", includeDates) { includeDates = it } }
-            item { SwitchRow("Star rating", includeRating) { includeRating = it } }
+            item { SwitchRow("Dates", includeDates) { includeDates = it; saved.includeDates = it } }
+            item { SwitchRow("Star rating", includeRating) { includeRating = it; saved.includeRating = it } }
             if (format == ShareFormat.POST) {
-                item { SwitchRow("Route summary (days, distance, transport)", includeRoute) { includeRoute = it } }
-                item { SwitchRow("Each leg (from → to, transport)" + if (trip.legs.isEmpty()) " (none logged)" else "", includeLegs) { includeLegs = it } }
-                item { SwitchRow("Incidents (${trip.incidents.size} logged, highlighted in the post)", includeIncidents) { includeIncidents = it } }
+                item { SwitchRow("Route summary (days, distance, transport)", includeRoute) { includeRoute = it; saved.includeRoute = it } }
+                item { SwitchRow("Each leg (from → to, transport)" + if (trip.legs.isEmpty()) " (none logged)" else "", includeLegs) { includeLegs = it; saved.includeLegs = it } }
+                item { SwitchRow("Incidents (${trip.incidents.size} logged, highlighted in the post)", includeIncidents) { includeIncidents = it; saved.includeIncidents = it } }
             }
-            item { SwitchRow("Companions" + if (trip.companions.isEmpty()) " (none logged)" else "", includeCompanions) { includeCompanions = it } }
+            item { SwitchRow("Companions" + if (trip.companions.isEmpty()) " (none logged)" else "", includeCompanions) { includeCompanions = it; saved.includeCompanions = it } }
             item { SectionHeader("Words") }
             item {
                 OutlinedTextField(

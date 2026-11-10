@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** In-memory stand-in so these toggles can be tested without a real Android Context. */
-private class FakePrefs : SharedPreferences {
+internal class FakePrefs : SharedPreferences {
     val values = mutableMapOf<String, Any?>()
 
     override fun getAll() = values.toMap()
