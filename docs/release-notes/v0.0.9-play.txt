@@ -1,0 +1,2 @@
+New: GPX and KML export, and sharing a post now keeps your text, map and incidents together as a picture followed by your photos. Your Share choices are remembered between trips.
+Also: remove a companion from a trip or delete them in Settings, one note per trip, share the app or send feedback from Settings, and fixes for lost camera photos and for rotating the phone.
