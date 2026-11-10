@@ -215,6 +215,26 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
     val companions: StateFlow<List<Companion>> = dao.observeCompanions()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** How many trips and incidents each companion appears on, by companion id. Absent means neither. */
+    val companionUsage: StateFlow<Map<Long, CompanionUsage>> =
+        combine(dao.observeTripCompanionRefs(), dao.observeIncidentPeople()) { trips, incidents ->
+            val tripCounts = trips.groupingBy { it.companionId }.eachCount()
+            val incidentCounts = incidents.groupingBy { it.companionId }.eachCount()
+            (tripCounts.keys + incidentCounts.keys).associateWith {
+                CompanionUsage(tripCounts[it] ?: 0, incidentCounts[it] ?: 0)
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    /** Takes a companion off one trip. They stay in the companion list and on any other trips or incidents. */
+    fun removeCompanionFromTrip(tripId: Long, companionId: Long) {
+        viewModelScope.launch { dao.removeCompanionFromTrip(tripId, companionId) }
+    }
+
+    /** Deletes a companion entirely. Trips and incidents stay; only their links to this person go. */
+    fun deleteCompanion(companionId: Long) {
+        viewModelScope.launch { dao.deleteCompanion(companionId) }
+    }
+
     /** The companions involved in each incident, by incident id. The owner is [Incident.involvesMe]. */
     val incidentPeople: StateFlow<Map<Long, List<Companion>>> =
         combine(dao.observeIncidentPeople(), dao.observeCompanions()) { refs, all ->
@@ -1021,6 +1041,9 @@ data class ListSort(val by: SortBy, val ascending: Boolean) {
 enum class HomeMode { AUTO, CUSTOM, OFF }
 
 data class HomeSettings(val mode: HomeMode, val lat: Double?, val lon: Double?, val radiusKm: Int)
+
+/** How many trips and incidents a companion is attached to. */
+data class CompanionUsage(val trips: Int, val incidents: Int)
 
 data class GalleryScan(val done: Int, val total: Int)
 
