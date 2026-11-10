@@ -59,9 +59,8 @@ nav a:hover{color:var(--ink)}
 .hero-copy h1{font-size:clamp(1.9rem,5vw,3rem);letter-spacing:-.02em}
 .hero-copy .lede{margin:0 auto 22px}
 .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:999px;font-weight:600;text-decoration:none;border:1.5px solid var(--accent);color:var(--accent);background:transparent}
-.btn.primary{background:var(--accent);color:var(--accent-ink)}
-.btn[aria-disabled=true]{opacity:.6;border-style:dashed;cursor:default}
+.play-badge{display:inline-block;line-height:0}
+.play-badge img{width:200px;height:auto}
 .note{color:var(--muted);font-size:.9rem;margin-top:14px}
 
 /* feature cards */
@@ -128,8 +127,7 @@ footer a:hover{color:var(--ink)}
       <h1>Your private travel diary</h1>
       <p class="lede">Bring in the trips Google Maps Timeline already found, then add the photos, ratings and stories that make each one memorable. Everything stays on your phone.</p>
       <div class="cta">
-        <a class="btn primary" href="https://github.com/Jonesie/adventure-timeline/releases/latest">Download for Android</a>
-        <span class="btn" aria-disabled="true">Google Play: coming soon</span>
+        <a class="play-badge" href="https://play.google.com/store/apps/details?id=nz.net.jonesie.adventuretimeline"><img src="assets/google-play-badge.png" width="646" height="250" alt="Get it on Google Play"></a>
       </div>
       <p class="note">Free and open source. No account, no ads, no tracking. Needs Android 8.0 or newer.</p>
     </div>
@@ -173,7 +171,7 @@ footer a:hover{color:var(--ink)}
 
         <div class="step">
           <h3>Install the app</h3>
-          <p>Google Play is coming soon. Until then, open the <a href="https://github.com/Jonesie/adventure-timeline/releases/latest">latest release</a> on your phone, download <b>app-release.apk</b> and open it. Android will ask you to allow installs from your browser or file manager the first time.</p>
+          <p>Get <a href="https://play.google.com/store/apps/details?id=nz.net.jonesie.adventuretimeline">Adventure Timeline on Google Play</a> and tap Install. Not using Google Play? You can <a href="#sideload">sideload the APK</a> instead.</p>
         </div>
 
         <div class="step">
@@ -274,7 +272,8 @@ footer a:hover{color:var(--ink)}
       <a href="https://github.com/Jonesie/adventure-timeline/issues">Report a problem</a>
       <a href="mailto:support@jonesie.net.nz">support@jonesie.net.nz</a>
     </div>
-    <div>© 2026 Jonesie. Free software under the <a href="https://github.com/Jonesie/adventure-timeline/blob/main/LICENSE">GNU GPL v3.0</a>. Maps © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>. Adventure Timeline is not affiliated with or endorsed by Google.</div>
+    <p id="sideload">Prefer to sideload the APK? Grab <b>app-release.apk</b> from the <a href="https://github.com/Jonesie/adventure-timeline/releases/latest">latest GitHub release</a>. Android will ask you to allow installs from your browser or file manager the first time.</p>
+    <div>© 2026 Jonesie. Free software under the <a href="https://github.com/Jonesie/adventure-timeline/blob/main/LICENSE">GNU GPL v3.0</a>. Maps © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>. Adventure Timeline is not affiliated with or endorsed by Google. Google Play and the Google Play logo are trademarks of Google LLC.</div>
   </div>
 </footer>
 
