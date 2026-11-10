@@ -14,19 +14,23 @@ All data is stored on the device (Room/SQLite). Nothing is synced automatically;
 ## Screenshots
 
 <p>
-  <img src="docs/screenshots/trips.png" width="19%" alt="List of trips with star ratings">
-  <img src="docs/screenshots/trip-route.png" width="19%" alt="A trip's route on the map, coloured by difficulty">
+  <img src="docs/screenshots/trips.png" width="19%" alt="List of trips with star ratings and incident markers">
+  <img src="docs/screenshots/trip-route.png" width="19%" alt="A trip's route on the map, with an incident marked">
+  <img src="docs/screenshots/trip-incidents.png" width="19%" alt="An incident on a trip, with its note, the people involved and photos">
   <img src="docs/screenshots/trip-legs.png" width="19%" alt="The legs of a trip with transport, times and ratings">
   <img src="docs/screenshots/trip-media.png" width="19%" alt="Photos and videos attached to a trip">
+</p>
+
+The route map fills the screen too, and every incident is listed in one place, alongside the stats:
+
+<p>
+  <img src="docs/screenshots/trip-map.png" width="19%" alt="Full-screen trip map with incidents and photos pinned">
+  <img src="docs/screenshots/incidents.png" width="19%" alt="The Incidents tab listing every incident across trips">
   <img src="docs/screenshots/stats.png" width="19%" alt="Trip stats: totals and distance by transport">
 </p>
 
-The route map fills the screen too:
-
-<p><img src="docs/screenshots/trip-map.png" width="30%" alt="Full-screen trip map"></p>
-
-*Trips, in order: the list, a trip's Map tab, its legs, its media and the stats. A companion's
-name is blurred.*
+*Sample companions and incident note; the trip is real but the names are not. Captioned, full-size
+versions for the Play listing are in `docs/play/screenshots/`.*
 
 ## Features
 

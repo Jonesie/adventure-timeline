@@ -72,6 +72,23 @@ Support: support@jonesie.net.nz
 
 Adventure Timeline is an independent project and is not affiliated with or endorsed by Google. "Google" and "Google Maps Timeline" are trademarks of Google LLC, used only to describe the files the app can import.
 
+## Screenshots
+
+Upload in this order from `docs/play/screenshots/` (1080x2160 phone, 2:1, captioned). The incident
+shots (02 and 03) are the point of difference, so keep them in the first four. Plain, uncaptioned
+copies for the README and website are in `docs/screenshots/`. Built from sample companions on a real trip
+(names changed), with the home area kept off the maps. Still to add: the Share tab once #3 lands, and
+the trip video screen once #4 is built. No 7"/10" tablet shots yet; the listing doesn't require them.
+
+1. 01-route-map: route on the map
+2. 02-incident-highlights: incident with note, people and photos
+3. 03-all-incidents: Incidents tab
+4. 04-trips: rated trip list
+5. 05-legs, 06-photos-video, 07-full-map, 08-stats
+
+The feature graphic (`feature-graphic.png`, 1024x500) shows the app name and theme, not the UI, so it
+still matches.
+
 ## Keywords worked in
 
 travel diary, trip diary, travel journal, trip log, road trip journal, trip tracker, route map, travel log,
