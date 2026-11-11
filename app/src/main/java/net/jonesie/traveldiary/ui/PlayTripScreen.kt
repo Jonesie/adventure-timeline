@@ -70,7 +70,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.TransportType
+import net.jonesie.traveldiary.util.AccentClock
+import net.jonesie.traveldiary.util.FinishSound
 import net.jonesie.traveldiary.util.TripPlayback
+import net.jonesie.traveldiary.util.ambient
 import net.jonesie.traveldiary.util.sound
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -80,6 +83,7 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 import java.text.DateFormat
 import java.util.Date
+import kotlin.random.Random
 
 private val SPEEDS = listOf(1f, 2f, 4f)
 
@@ -136,6 +140,9 @@ private fun PlayerContent(timeline: TripPlayback.Timeline) {
     var unit by remember(timeline) { mutableFloatStateOf(0f) }
     var active by remember(timeline) { mutableStateOf<TripPlayback.Event?>(null) }
     var finished by remember(timeline) { mutableStateOf(false) }
+    var transport by remember(timeline) { mutableStateOf<TransportType?>(null) }
+    val accents = remember(timeline) { AccentClock() }
+    var lastFinish by remember { mutableStateOf<FinishSound?>(null) }
     val latestSpeed by rememberUpdatedState(speed)
     val latestSound by rememberUpdatedState(soundOn)
 
@@ -156,6 +163,11 @@ private fun PlayerContent(timeline: TripPlayback.Timeline) {
         onDispose { lifecycle.removeObserver(observer) }
     }
 
+    // The transport's sound loops while travelling and goes quiet at a stop, a pause, or when muted.
+    LaunchedEffect(transport, playing, soundOn, active) {
+        effects.setLoop(if (playing && soundOn && active == null) transport?.ambient() else null)
+    }
+
     LaunchedEffect(session, overlays, playing) {
         val shown = overlays ?: return@LaunchedEffect
         if (!playing) return@LaunchedEffect
@@ -164,15 +176,23 @@ private fun PlayerContent(timeline: TripPlayback.Timeline) {
         while (true) {
             val now = withFrameMillis { it }
             // A long pause (the app stalled) shouldn't make the vehicle leap.
-            val reachedNow = session.advance((now - last).coerceAtMost(100L), latestSpeed)
+            val dt = (now - last).coerceAtMost(100L)
+            val reachedNow = session.advance(dt, latestSpeed)
             last = now
             shown.render(session.unit, session.reached)
             unit = session.unit.toFloat()
             active = session.active
+            transport = shown.transport
+            if (latestSound && session.active == null) accents.tick(dt, shown.transport)?.let { effects.play(it) }
             if (reachedNow?.incident != null && latestSound) effects.play(reachedNow.incident.category.sound())
             if (session.finished) {
                 playing = false
                 finished = true
+                if (latestSound) {
+                    val celebration = FinishSound.pick(Random.Default, lastFinish)
+                    lastFinish = celebration
+                    effects.play(celebration)
+                }
                 break
             }
         }
@@ -218,6 +238,7 @@ private fun PlayerContent(timeline: TripPlayback.Timeline) {
                         active = null
                         finished = false
                         overlays?.render(session.unit, session.reached)
+                        transport = overlays?.transport
                     },
                     valueRange = 0f..timeline.totalUnits.toFloat()
                 )
@@ -305,6 +326,10 @@ private class PlaybackOverlays(private val mapView: MapView, private val timelin
     private val travelled: List<Polyline>
     private val vehicle: Marker
     private var vehicleTransport: TransportType? = null
+
+    /** What the vehicle is travelling by right now. */
+    var transport: TransportType? = null
+        private set
     private val eventMarkers = mutableListOf<List<org.osmdroid.views.overlay.Overlay>>()
 
     /** What each travelled piece currently shows: nothing, all of it, or part of it. */
@@ -334,6 +359,7 @@ private class PlaybackOverlays(private val mapView: MapView, private val timelin
 
     fun render(unit: Double, reached: Int) {
         val position = timeline.positionAt(unit) ?: return
+        transport = position.transport
         for (i in travelled.indices) {
             when {
                 i < position.pieceIndex -> if (shown[i] != FULL) { travelled[i].setPoints(geo[i]); travelled[i].isEnabled = true; shown[i] = FULL }

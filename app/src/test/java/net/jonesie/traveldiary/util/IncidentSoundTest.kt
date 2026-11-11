@@ -15,14 +15,15 @@ class IncidentSoundTest {
     @Test
     fun theObviousOnesSoundRight() {
         assertEquals(IncidentSound.CRASH, IncidentCategory.CRASH.sound())
-        assertEquals(IncidentSound.CRASH, IncidentCategory.FELL_OFF.sound())
-        assertEquals(IncidentSound.SPLASH, IncidentCategory.WATER.sound())
+        assertEquals(IncidentSound.SCREAM, IncidentCategory.FELL_OFF.sound())
+        assertEquals(IncidentSound.SCREAM_SPLASH, IncidentCategory.WATER.sound())
+        assertEquals(IncidentSound.SIREN, IncidentCategory.INJURY.sound())
         assertEquals(IncidentSound.THUNDER, IncidentCategory.WEATHER.sound())
         assertEquals(IncidentSound.SPUTTER, IncidentCategory.OUT_OF_FUEL.sound())
     }
 
     @Test
     fun differentKindsOfTroubleDontAllSoundTheSame() {
-        assertTrue(IncidentCategory.entries.map { it.sound() }.toSet().size >= 5)
+        assertTrue(IncidentCategory.entries.map { it.sound() }.toSet().size >= 6)
     }
 }
