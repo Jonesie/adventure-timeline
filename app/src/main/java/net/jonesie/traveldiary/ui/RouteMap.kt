@@ -217,7 +217,7 @@ private fun drawOverlays(
     mapView.invalidate()
 }
 
-private fun fitBounds(mapView: MapView, points: List<GeoPoint>) {
+internal fun fitBounds(mapView: MapView, points: List<GeoPoint>) {
     if (points.isEmpty()) return
     if (points.size == 1) {
         mapView.controller.setCenter(points.first())

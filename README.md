@@ -60,6 +60,7 @@ versions for the Play listing are in `docs/play/screenshots/`.*
   background) are pinned on trip maps (on by default) and on the all-trips map (off by default);
   tap a pin to open it.
 - **Centre on my location** button on every map.
+- **Play trip**: the ▶ button on a trip's map (and in the full-screen map) plays the trip back as an animation. The route draws itself with the vehicle (walk, bike, motorbike, car, bus, train, plane, boat) travelling along it; photos pop up with their captions where they were taken, and incidents stop the show with a sound effect (a crash, a tyre screech, a splash, a spluttering engine, thunder). Nights and untracked gaps are skipped, a flight with no trail is a dashed straight line, and there are pause, scrub, 1x/2x/4x speed and mute controls. The sounds are synthesised by `tools/generate_sfx.py`, so there are no third-party samples.
 - **Photo viewer**: pinch/double-tap to zoom, and the place a photo or video was taken (from its
   metadata) with a tap to open it in a maps app. Gallery items need the "location info in photos"
   permission to reveal it.
