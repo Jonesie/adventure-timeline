@@ -1,0 +1,2 @@
+New: Play trip. Tap the play button on a trip's map to watch it as an animation: the route draws itself with your vehicle, photos pop up where they were taken, and incidents stop the show with a sound.
+Also: a quiet sound for each kind of transport, a random celebration at the end, and pause, scrub, speed and mute controls.

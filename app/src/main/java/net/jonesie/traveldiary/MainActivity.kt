@@ -48,6 +48,7 @@ import net.jonesie.traveldiary.ui.MediaPickerScreen
 import net.jonesie.traveldiary.ui.MediaViewerScreen
 import net.jonesie.traveldiary.ui.NearbyScreen
 import net.jonesie.traveldiary.ui.PickerMode
+import net.jonesie.traveldiary.ui.PlayTripScreen
 import net.jonesie.traveldiary.ui.SplashOverlay
 import net.jonesie.traveldiary.ui.RecordAudioScreen
 import net.jonesie.traveldiary.ui.AppTheme
@@ -341,6 +342,7 @@ private fun TravelDiaryApp() {
                 onOpenIncidentMedia = { id, index -> navController.navigate("incidentMedia/$id/$index") },
                 onEdit = { navController.navigate("tripDetail/$tripId/edit") },
                 onOpenMap = { navController.navigate("tripDetail/$tripId/map") },
+                onPlay = { navController.navigate("tripDetail/$tripId/play") },
                 onExportData = { navController.navigate("tripDetail/$tripId/export") }
             )
         }
@@ -362,8 +364,17 @@ private fun TravelDiaryApp() {
                 tripId = tripId,
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
+                onPlay = { navController.navigate("tripDetail/$tripId/play") },
                 onOpenMedia = { index -> navController.navigate("tripDetail/$tripId/media/$index") }
             )
+        }
+
+        composable(
+            "tripDetail/{tripId}/play",
+            arguments = listOf(navArgument("tripId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val tripId = backStackEntry.arguments?.getLong("tripId") ?: return@composable
+            PlayTripScreen(tripId = tripId, viewModel = viewModel, onBack = { navController.popBackStack() })
         }
 
         composable(

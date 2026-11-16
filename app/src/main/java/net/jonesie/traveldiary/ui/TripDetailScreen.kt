@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material.icons.filled.Star
@@ -109,6 +110,7 @@ fun TripDetailScreen(
     onOpenIncidentMedia: (incidentId: Long, index: Int) -> Unit,
     onEdit: () -> Unit,
     onOpenMap: () -> Unit,
+    onPlay: () -> Unit,
     onExportData: () -> Unit
 ) {
     val detail by remember(tripId) { viewModel.tripDetail(tripId) }.collectAsState(initial = null)
@@ -288,7 +290,7 @@ fun TripDetailScreen(
             // MapView's own pan/zoom gestures don't compete with a scroll container.
             Column(modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
                 when (selectedTab) {
-                    0 -> OverviewTab(tripId, viewModel, trip, onOpenMap, onOpenMedia, onRate = { viewModel.setTripRating(tripId, it) })
+                    0 -> OverviewTab(tripId, viewModel, trip, onOpenMap, onPlay, onOpenMedia, onRate = { viewModel.setTripRating(tripId, it) })
                     1 -> CappedColumn { LegsTab(legGroups, onEditGroup = { editingGroup = it }) }
                     2 -> MediaTab(trip, importProgress, onPickMedia, onAutoAddMedia, onOpenMedia, nearbyCount, onReviewNearby)
                     3 -> CappedColumn { NotesTab(trip, onEdit) }
@@ -307,6 +309,7 @@ private fun ColumnScope.OverviewTab(
     viewModel: TravelDiaryViewModel,
     trip: TripDetail,
     onOpenMap: () -> Unit,
+    onPlay: () -> Unit,
     onOpenMedia: (Int) -> Unit,
     onRate: (Int) -> Unit
 ) {
@@ -345,8 +348,13 @@ private fun ColumnScope.OverviewTab(
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
                 modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
             ) {
-                IconButton(onClick = onOpenMap) {
-                    Icon(Icons.Filled.Fullscreen, contentDescription = "Full screen map")
+                Row {
+                    IconButton(onClick = onPlay) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = "Play trip")
+                    }
+                    IconButton(onClick = onOpenMap) {
+                        Icon(Icons.Filled.Fullscreen, contentDescription = "Full screen map")
+                    }
                 }
             }
         }
