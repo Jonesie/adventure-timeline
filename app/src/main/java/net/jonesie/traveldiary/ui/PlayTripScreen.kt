@@ -46,7 +46,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -98,10 +97,14 @@ private val SPEEDS = listOf(1f, 2f, 4f)
 fun PlayTripScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: () -> Unit) {
     val detail by remember(tripId) { viewModel.tripDetail(tripId) }.collectAsState(initial = null)
     val trip = detail
-    val timeline by produceState<TripPlayback.Timeline?>(null, tripId, trip) {
-        if (trip == null) return@produceState
-        val trail = viewModel.routePointsFor(tripId)
-        value = withContext(Dispatchers.Default) { TripPlayback.build(trail, trip.legs, trip.media, trip.incidents) }
+    var timeline by remember { mutableStateOf<TripPlayback.Timeline?>(null) }
+    LaunchedEffect(tripId, trip) {
+        if (trip == null) {
+            timeline = null
+        } else {
+            val trail = viewModel.routePointsFor(tripId)
+            timeline = withContext(Dispatchers.Default) { TripPlayback.build(trail, trip.legs, trip.media, trip.incidents) }
+        }
     }
 
     Scaffold(
