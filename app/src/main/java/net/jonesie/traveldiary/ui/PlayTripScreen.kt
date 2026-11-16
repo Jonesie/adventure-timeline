@@ -67,6 +67,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.TransportType
@@ -74,7 +76,7 @@ import net.jonesie.traveldiary.util.AccentClock
 import net.jonesie.traveldiary.util.FinishSound
 import net.jonesie.traveldiary.util.TripPlayback
 import net.jonesie.traveldiary.util.ambient
-import net.jonesie.traveldiary.util.sound
+import net.jonesie.traveldiary.util.cues
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -184,7 +186,13 @@ private fun PlayerContent(timeline: TripPlayback.Timeline) {
             active = session.active
             transport = shown.transport
             if (latestSound && session.active == null) accents.tick(dt, shown.transport)?.let { effects.play(it) }
-            if (reachedNow?.incident != null && latestSound) effects.play(reachedNow.incident.category.sound())
+            reachedNow?.incident?.cues()?.forEach { cue ->
+                // The siren for a serious incident follows the first sound; pausing cancels it with the rest.
+                launch {
+                    if (cue.delayMs > 0) delay(cue.delayMs)
+                    if (latestSound) effects.play(cue.sound)
+                }
+            }
             if (session.finished) {
                 playing = false
                 finished = true

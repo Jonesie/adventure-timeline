@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Synthesises the incident sound effects in app/src/main/res/raw/.
 
-Every sound is generated from noise and simple tones here, so there are no third-party samples and
-nothing to attribute or relicense. Needs numpy, scipy and ffmpeg (with libvorbis).
+Every sound is generated from noise and simple tones here, except the scream: that is trimmed from an
+ElevenLabs-generated clip in tools/sfx_source/ (see the NOTICE there for its licensing). The app has both that
+and a synthesised scream, and picks between them at random. Needs numpy, scipy and ffmpeg (with libvorbis).
 
     python3 tools/generate_sfx.py
 
@@ -133,17 +134,38 @@ def alert():
     return mix(0.75, (0, note(700, 0.3)), (0.25, note(466, 0.5)))
 
 
+RECORDED_SCREAM = pathlib.Path(__file__).resolve().parent / "sfx_source" / "scream_elevenlabs.mp3"
+SCREAM_SECONDS = 1.2
+
+
+def recorded_scream():
+    """The ElevenLabs scream trimmed to its first [SCREAM_SECONDS]."""
+    raw = subprocess.run(
+        ["ffmpeg", "-nostdin", "-loglevel", "error", "-i", str(RECORDED_SCREAM), "-f", "s16le", "-ac", "1", "-ar", str(RATE), "-"],
+        check=True, capture_output=True,
+    ).stdout
+    x = np.frombuffer(raw, dtype=np.int16).astype(float)[: int(SCREAM_SECONDS * RATE)]
+    ramp = int(0.15 * RATE)
+    x[-ramp:] *= np.linspace(1, 0, ramp)  # the clip is cut mid-scream, so ease it out
+    return x
+
+
 def scream():
+    return synthetic_scream(noise(1.5))
+
+
+def synthetic_scream(breath):
     """A scream: a high, wavering voice that jumps up, hangs on, and gives out. Crude, but it reads as one."""
-    d = 1.5
+    d = 0.9
     tt = t(d)
-    pitch = 520 + 420 * (1 - np.exp(-tt * 9)) - 220 * np.clip(tt - 0.9, 0, None)
+    breath = breath[:len(tt)]
+    pitch = 520 + 420 * (1 - np.exp(-tt * 9)) - 220 * np.clip(tt - 0.5, 0, None)
     pitch *= 1 + 0.03 * np.sin(2 * np.pi * 6.5 * tt) * np.minimum(tt / 0.4, 1)
     phase = 2 * np.pi * np.cumsum(pitch) / RATE
     voice = sum(np.sin(h * phase) / h for h in range(1, 25))
-    voice = voice * (1 + 0.35 * np.sin(2 * np.pi * 70 * tt)) + bandpass(noise(d), 1500, 6000) * 0.35  # rasp and breath
+    voice = voice * (1 + 0.35 * np.sin(2 * np.pi * 70 * tt)) + bandpass(breath, 1500, 6000) * 0.35  # rasp and breath
     vowel = bandpass(voice, 700, 1000) + 0.7 * bandpass(voice, 1100, 1400) + 0.45 * bandpass(voice, 2500, 3100)
-    env = np.minimum(tt / 0.04, 1) * np.minimum((d - tt) / 0.3, 1) * (1 - 0.25 * tt / d)
+    env = np.minimum(tt / 0.04, 1) * np.minimum((d - tt) / 0.2, 1) * (1 - 0.25 * tt / d)
     return np.tanh(2.2 * vowel / max(1e-9, np.abs(vowel).max())) * env
 
 
@@ -438,13 +460,30 @@ def siren():
     return shaped(np.tanh(1.6 * wave), 0.05, 0.25)
 
 
-def scream_splash():
-    """A fall into water: a scream that is cut off by a splash."""
-    def level(x, peak):
-        return x / max(1e-9, np.abs(x).max()) * peak
+_splash_parts = {}
 
-    # Each at its own full level first, or the splash is lost under the scream.
-    return mix(2.7, (0, level(scream(), 0.7)), (1.15, level(splash(), 0.9)))
+
+def splash_parts():
+    """The breath noise and the splash, drawn once so both takes of the water incident share them."""
+    if not _splash_parts:
+        _splash_parts["breath"] = noise(1.5)
+        _splash_parts["splash"] = splash()
+    return _splash_parts
+
+
+def level(x, peak):
+    return x / max(1e-9, np.abs(x).max()) * peak
+
+
+def scream_splash():
+    """A fall into water: the recorded scream, cut off by a splash. Each at its own full level first, or the splash is lost."""
+    return mix(2.4, (0, level(recorded_scream(), 0.7)), (1.0, level(splash_parts()["splash"], 0.9)))
+
+
+def scream_splash_synth():
+    """The same with the synthesised scream, which is shorter."""
+    parts = splash_parts()
+    return mix(2.1, (0, level(synthetic_scream(parts["breath"]), 0.7)), (0.7, level(parts["splash"], 0.9)))
 
 
 # Name -> (how to make it, whether it loops). Loops are left unfaded so they join up without a dip. Keep new
@@ -456,7 +495,8 @@ SOUNDS = {
     "sfx_sputter": (sputter, False),
     "sfx_thunder": (thunder, False),
     "sfx_alert": (alert, False),
-    "sfx_scream": (scream, False),
+    "sfx_scream_synth": (scream, False),
+    "sfx_scream": (recorded_scream, False),
     "amb_walk": (walk, True),
     "amb_bike": (bike, True),
     "amb_motorbike": (motorbike, True),
@@ -474,6 +514,7 @@ SOUNDS = {
     "fin_crowd_cheer": (crowd_cheer, False),
     "sfx_siren": (siren, False),
     "sfx_scream_splash": (scream_splash, False),
+    "sfx_scream_splash_synth": (scream_splash_synth, False),
 }
 
 

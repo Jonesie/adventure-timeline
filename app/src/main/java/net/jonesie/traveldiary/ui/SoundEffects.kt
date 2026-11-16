@@ -8,6 +8,8 @@ import net.jonesie.traveldiary.util.FinishSound
 import net.jonesie.traveldiary.util.IncidentSound
 import net.jonesie.traveldiary.util.TransportAccent
 import net.jonesie.traveldiary.util.TransportSound
+import net.jonesie.traveldiary.util.pickVariant
+import kotlin.random.Random
 
 /**
  * Plays the trip animation's sounds: short incident clips, a quiet loop for the transport being travelled, and the odd
@@ -23,7 +25,9 @@ class SoundEffects(context: Context) {
                 .build()
         )
         .build()
-    private val incidentIds = IncidentSound.entries.associateWith { pool.load(context, it.resource(), 1) }
+    // Some incident sounds have more than one take; one is picked at random each time.
+    private val incidentIds = IncidentSound.entries.associateWith { sound -> sound.resources().map { pool.load(context, it, 1) } }
+    private val lastTake = mutableMapOf<IncidentSound, Int>()
     private val loopIds = TransportSound.entries.associateWith { pool.load(context, it.resource(), 1) }
     private val accentIds = TransportAccent.entries.associateWith { pool.load(context, it.resource(), 1) }
     private val finishIds = FinishSound.entries.associateWith { pool.load(context, it.resource(), 1) }
@@ -44,7 +48,10 @@ class SoundEffects(context: Context) {
 
     /** Silently does nothing if the clip hasn't finished loading yet. */
     fun play(sound: IncidentSound) {
-        incidentIds[sound]?.let { pool.play(it, 1f, 1f, 1, 0, 1f) }
+        val takes = incidentIds[sound] ?: return
+        val take = pickVariant(Random.Default, takes.size, lastTake[sound])
+        lastTake[sound] = take
+        pool.play(takes[take], 1f, 1f, 1, 0, 1f)
     }
 
     fun play(sound: FinishSound) {
@@ -90,16 +97,16 @@ class SoundEffects(context: Context) {
     }
 }
 
-private fun IncidentSound.resource(): Int = when (this) {
-    IncidentSound.CRASH -> R.raw.sfx_crash
-    IncidentSound.SCREECH -> R.raw.sfx_screech
-    IncidentSound.SPLASH -> R.raw.sfx_splash
-    IncidentSound.SPUTTER -> R.raw.sfx_sputter
-    IncidentSound.THUNDER -> R.raw.sfx_thunder
-    IncidentSound.ALERT -> R.raw.sfx_alert
-    IncidentSound.SCREAM -> R.raw.sfx_scream
-    IncidentSound.SIREN -> R.raw.sfx_siren
-    IncidentSound.SCREAM_SPLASH -> R.raw.sfx_scream_splash
+private fun IncidentSound.resources(): List<Int> = when (this) {
+    IncidentSound.CRASH -> listOf(R.raw.sfx_crash)
+    IncidentSound.SCREECH -> listOf(R.raw.sfx_screech)
+    IncidentSound.SPLASH -> listOf(R.raw.sfx_splash)
+    IncidentSound.SPUTTER -> listOf(R.raw.sfx_sputter)
+    IncidentSound.THUNDER -> listOf(R.raw.sfx_thunder)
+    IncidentSound.ALERT -> listOf(R.raw.sfx_alert)
+    IncidentSound.SCREAM -> listOf(R.raw.sfx_scream, R.raw.sfx_scream_synth)
+    IncidentSound.SIREN -> listOf(R.raw.sfx_siren)
+    IncidentSound.SCREAM_SPLASH -> listOf(R.raw.sfx_scream_splash, R.raw.sfx_scream_splash_synth)
 }
 
 private fun TransportSound.resource(): Int = when (this) {
