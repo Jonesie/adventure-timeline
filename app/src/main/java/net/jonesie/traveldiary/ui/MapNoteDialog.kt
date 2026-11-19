@@ -105,6 +105,8 @@ fun MapNoteDialog(
                 onCancel = { picking = false; if (place == null && note == null && startWithPicker) onDismiss() }
             )
         }
+        // The form is a dialog too, and a later dialog is drawn above an earlier one, so it waits while the map is up.
+        return
     }
 
     if (confirmDelete && note != null) {

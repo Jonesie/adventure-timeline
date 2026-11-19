@@ -89,7 +89,7 @@ the trip video screen once #4 is built. No 7"/10" tablet shots yet; the listing 
 2. 02-incident-highlights: incident with note, people and photos
 3. 03-all-incidents: Incidents tab
 4. 04-trips: rated trip list
-5. 05-legs, 06-photos-video, 07-full-map, 08-stats
+5. 05-legs, 06-photos-video, 07-full-map (map notes pinned on the route), 08-stats
 
 The feature graphic (`feature-graphic.png`, 1024x500) shows the app name and theme, not the UI, so it
 still matches.
