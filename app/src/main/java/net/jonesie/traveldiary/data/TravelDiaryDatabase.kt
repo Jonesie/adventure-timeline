@@ -17,9 +17,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Incident::class,
         IncidentPersonCrossRef::class,
         RoutePoint::class,
-        GalleryIndexItem::class
+        GalleryIndexItem::class,
+        MapNote::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 abstract class TravelDiaryDatabase : RoomDatabase() {
@@ -148,13 +149,28 @@ abstract class TravelDiaryDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS map_notes (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "tripId INTEGER NOT NULL, legId INTEGER, lat REAL NOT NULL, lon REAL NOT NULL, " +
+                        "text TEXT NOT NULL, category TEXT, createdAt INTEGER NOT NULL, " +
+                        "shareable INTEGER NOT NULL DEFAULT 1, " +
+                        "FOREIGN KEY(tripId) REFERENCES trips(id) ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                        "FOREIGN KEY(legId) REFERENCES legs(id) ON UPDATE NO ACTION ON DELETE SET NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_map_notes_tripId ON map_notes (tripId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_map_notes_legId ON map_notes (legId)")
+            }
+        }
+
         fun get(context: Context): TravelDiaryDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     TravelDiaryDatabase::class.java,
                     "travel-diary.db"
-                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12).fallbackToDestructiveMigration().build().also { instance = it }
+                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13).fallbackToDestructiveMigration().build().also { instance = it }
             }
     }
 }

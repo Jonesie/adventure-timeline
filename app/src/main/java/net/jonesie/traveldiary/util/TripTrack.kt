@@ -2,19 +2,21 @@ package net.jonesie.traveldiary.util
 
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.Leg
+import net.jonesie.traveldiary.data.MapNote
 import net.jonesie.traveldiary.data.RoutePoint
+import net.jonesie.traveldiary.ui.label
 import java.time.Instant
 import java.util.Locale
 
 /** A trip's route as a GPX or KML file, for mapping apps, GPS units and Google Earth. */
 object TripTrack {
 
-    private class Waypoint(val lat: Double, val lon: Double, val name: String, val description: String?, val time: Long?)
+    private class Waypoint(val lat: Double, val lon: Double, val name: String, val description: String?, val time: Long?, val type: String? = null)
 
     private class Track(val title: String, val startTime: Long, val segments: List<List<RoutePoint>>, val waypoints: List<Waypoint>)
 
-    fun gpx(title: String, startTime: Long, trail: List<RoutePoint>, legs: List<Leg>, incidents: List<Incident>, hidden: HiddenArea?): String {
-        val t = build(title, startTime, trail, legs, incidents, hidden)
+    fun gpx(title: String, startTime: Long, trail: List<RoutePoint>, legs: List<Leg>, incidents: List<Incident>, hidden: HiddenArea?, notes: List<MapNote> = emptyList()): String {
+        val t = build(title, startTime, trail, legs, incidents, hidden, notes)
         val out = StringBuilder()
         out.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
         out.append("<gpx version=\"1.1\" creator=\"Adventure Timeline\" xmlns=\"http://www.topografix.com/GPX/1/1\">\n")
@@ -24,6 +26,7 @@ object TripTrack {
             w.time?.let { out.append("<time>").append(utc(it)).append("</time>") }
             out.append("<name>").append(escape(w.name)).append("</name>")
             w.description?.let { out.append("<desc>").append(escape(it)).append("</desc>") }
+            w.type?.let { out.append("<type>").append(escape(it)).append("</type>") }
             out.append("</wpt>\n")
         }
         if (t.segments.isNotEmpty()) {
@@ -42,8 +45,8 @@ object TripTrack {
         return out.toString()
     }
 
-    fun kml(title: String, startTime: Long, trail: List<RoutePoint>, legs: List<Leg>, incidents: List<Incident>, hidden: HiddenArea?): String {
-        val t = build(title, startTime, trail, legs, incidents, hidden)
+    fun kml(title: String, startTime: Long, trail: List<RoutePoint>, legs: List<Leg>, incidents: List<Incident>, hidden: HiddenArea?, notes: List<MapNote> = emptyList()): String {
+        val t = build(title, startTime, trail, legs, incidents, hidden, notes)
         val out = StringBuilder()
         out.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
         out.append("<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document>\n  <name>").append(escape(t.title)).append("</name>\n")
@@ -66,7 +69,7 @@ object TripTrack {
         return out.toString()
     }
 
-    private fun build(title: String, startTime: Long, trail: List<RoutePoint>, legs: List<Leg>, incidents: List<Incident>, hidden: HiddenArea?): Track {
+    private fun build(title: String, startTime: Long, trail: List<RoutePoint>, legs: List<Leg>, incidents: List<Incident>, hidden: HiddenArea?, notes: List<MapNote>): Track {
         fun visible(lat: Double, lon: Double) = TripExport.hasPosition(lat, lon) && (hidden == null || !hidden.contains(lat, lon))
 
         val sortedLegs = legs.sortedBy { it.startTime }
@@ -103,6 +106,12 @@ object TripTrack {
             val lat = incident.lat; val lon = incident.lon
             if (lat != null && lon != null && visible(lat, lon)) {
                 waypoints += Waypoint(lat, lon, "⚠ " + PostComposer.incidentLine(incident).substringBefore(':'), incident.notes.trim().ifEmpty { null }, incident.timestamp)
+            }
+        }
+        // Notes are written once, in the order the route passes them. The type lets Adventure Timeline read them back as notes.
+        MapNotePlace.alongRoute(notes.filter { it.shareable }, points.map { it.lat to it.lon }).forEach { note ->
+            if (visible(note.lat, note.lon)) {
+                waypoints += Waypoint(note.lat, note.lon, note.text, note.category?.label(), null, GpxImport.noteType(note.category))
             }
         }
         return Track(title, startTime, segments.filter { it.size > 1 }, waypoints)

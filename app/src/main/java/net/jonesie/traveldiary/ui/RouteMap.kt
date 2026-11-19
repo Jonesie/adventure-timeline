@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.doOnLayout
 import net.jonesie.traveldiary.data.Incident
+import net.jonesie.traveldiary.data.MapNote
 import net.jonesie.traveldiary.data.Leg
 import net.jonesie.traveldiary.util.HiddenArea
 import net.jonesie.traveldiary.data.RoutePoint
@@ -150,6 +151,7 @@ private class RouteMapState {
     var drawnLocation: GeoPoint? = null
     var drawnPins: List<PhotoPin>? = null
     var drawnIncidents: List<Incident>? = null
+    var drawnNotes: List<MapNote>? = null
 }
 
 private fun drawOverlays(
@@ -161,7 +163,9 @@ private fun drawOverlays(
     pins: List<PhotoPin>,
     onOpenPin: (PhotoPin) -> Unit,
     dark: Boolean,
-    incidents: List<Incident> = emptyList()
+    incidents: List<Incident> = emptyList(),
+    notes: List<MapNote> = emptyList(),
+    onOpenNote: ((MapNote) -> Unit)? = null
 ) {
     val density = mapView.resources.displayMetrics.density
     mapView.overlays.clear()
@@ -212,6 +216,7 @@ private fun drawOverlays(
     }
     addPhotoPins(mapView, pins, onOpenPin)
     addIncidentMarkers(mapView, incidents)
+    addMapNoteMarkers(mapView, notes, onOpenNote)
     addOsmCredit(mapView, dark)
     myLocation?.let { addMyLocationMarker(mapView, it) }
     mapView.invalidate()
@@ -239,7 +244,9 @@ fun RouteMap(
     onOpenMedia: ((Int) -> Unit)? = null,
     onMapView: ((MapView) -> Unit)? = null,
     onMapExport: ((MapExport) -> Unit)? = null,
-    hidden: HiddenArea? = null
+    hidden: HiddenArea? = null,
+    mapNotes: List<MapNote> = emptyList(),
+    onOpenNote: ((MapNote) -> Unit)? = null
 ) {
     // Newly read locations flow back through the trip's media list, so nothing to do when it finishes.
     BackfillMediaLocations(viewModel) {}
@@ -287,6 +294,10 @@ fun RouteMap(
     }
     var showIncidents by rememberSaveable { mutableStateOf(true) }
     val shownIncidents = if (showIncidents) incidentPins else emptyList()
+    val notePins = remember(mapNotes, hidden) {
+        mapNotes.filterNot { hidden != null && hidden.contains(it.lat, it.lon) }
+    }
+    val latestOpenNote by rememberUpdatedState(onOpenNote)
     val latestOpen by rememberUpdatedState(onOpenMedia)
 
     val state = remember { RouteMapState() }
@@ -314,10 +325,11 @@ fun RouteMap(
                 }
             },
             update = { mapView ->
-                if (state.drawn != segments || state.drawnWaypoints != shownWaypoints || state.drawnLocation != myLocation || state.drawnPins != shownPins || state.drawnIncidents != shownIncidents) {
-                    drawOverlays(mapView, segments, allPoints, shownWaypoints, myLocation, shownPins, { pin -> latestOpen?.invoke(pin.index) }, dark, shownIncidents)
+                if (state.drawn != segments || state.drawnWaypoints != shownWaypoints || state.drawnLocation != myLocation || state.drawnPins != shownPins || state.drawnIncidents != shownIncidents || state.drawnNotes != notePins) {
+                    drawOverlays(mapView, segments, allPoints, shownWaypoints, myLocation, shownPins, { pin -> latestOpen?.invoke(pin.index) }, dark, shownIncidents, notePins, if (latestOpenNote != null) { note -> latestOpenNote?.invoke(note) } else null)
                     state.drawnPins = shownPins
                     state.drawnIncidents = shownIncidents
+                    state.drawnNotes = notePins
                     onMapExport?.invoke(
                         MapExport(
                             lines = segments.filter { it.points.size > 1 }.map { seg ->
@@ -325,6 +337,7 @@ fun RouteMap(
                             },
                             waypoints = shownWaypoints.map { it.point },
                             pins = shownPins.map { ExportPin(it.point, it.item.type == net.jonesie.traveldiary.data.MediaType.VIDEO) },
+                            notes = notePins.map { GeoPoint(it.lat, it.lon) },
                             start = allPoints.firstOrNull(),
                             end = allPoints.lastOrNull()?.takeIf { it != allPoints.firstOrNull() }
                         )
@@ -468,6 +481,56 @@ internal fun addIncidentMarkers(mapView: MapView, incidents: List<Incident>) {
             snippet = timeFormat.format(Date(incident.timestamp)) +
                 (severityLabel(incident.severity)?.let { " · $it" } ?: "") +
                 (if (incident.notes.isNotBlank()) "\n" + incident.notes else "")
+        })
+    }
+}
+
+/** Amber, to stand apart from the red incident discs and the teal and purple photo and video squares. */
+internal const val NOTE_COLOUR = 0xFFF9A825.toInt()
+
+/** An amber rounded square with an "i", drawn in code so it needs no image. */
+private class NoteBadge(density: Float) : android.graphics.drawable.Drawable() {
+    private val size = (24 * density).toInt()
+    private val corner = 6 * density
+    private val fill = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = NOTE_COLOUR }
+    private val ring = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE; style = android.graphics.Paint.Style.STROKE; strokeWidth = 2.5f * density
+    }
+    private val mark = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF3E2723.toInt(); textAlign = android.graphics.Paint.Align.CENTER
+        textSize = 16f * density; isFakeBoldText = true
+    }
+
+    override fun draw(canvas: android.graphics.Canvas) {
+        val inset = ring.strokeWidth / 2
+        val rect = android.graphics.RectF(bounds.left + inset, bounds.top + inset, bounds.right - inset, bounds.bottom - inset)
+        canvas.drawRoundRect(rect, corner, corner, fill)
+        canvas.drawRoundRect(rect, corner, corner, ring)
+        canvas.drawText("i", bounds.exactCenterX(), bounds.exactCenterY() + mark.textSize * 0.35f, mark)
+    }
+
+    override fun getIntrinsicWidth() = size
+    override fun getIntrinsicHeight() = size
+    override fun setAlpha(alpha: Int) {}
+    override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
+}
+
+/**
+ * One marker per note. Tapping it opens the note for editing when [onOpen] is given, otherwise it shows what
+ * the note says (the small map on the trip's first tab).
+ */
+internal fun addMapNoteMarkers(mapView: MapView, notes: List<MapNote>, onOpen: ((MapNote) -> Unit)?) {
+    val density = mapView.resources.displayMetrics.density
+    notes.forEach { note ->
+        mapView.overlays.add(Marker(mapView).apply {
+            position = GeoPoint(note.lat, note.lon)
+            icon = NoteBadge(density)
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            title = note.category?.label() ?: "Note"
+            snippet = note.text
+            if (onOpen != null) setOnMarkerClickListener { _, _ -> onOpen(note); true }
         })
     }
 }

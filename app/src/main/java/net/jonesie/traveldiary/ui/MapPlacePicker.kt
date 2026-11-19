@@ -48,16 +48,17 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 
 /**
- * A full-screen map for choosing where something happened: tap to put the pin down, or press and hold the pin to
+ * A full-screen map for choosing a place (where an incident happened, or what a note is about): tap to put the pin down, or press and hold the pin to
  * move it. The trip's route is drawn, and the pin can jump onto it ("Snap to route"). Nothing is saved here;
  * [onDone] hands back the chosen place.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun IncidentMapPicker(
+fun MapPlacePicker(
     tripId: Long?,
     viewModel: TravelDiaryViewModel,
     initial: Pair<Double, Double>?,
+    what: String = "the incident",
     onDone: (lat: Double, lon: Double) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -175,7 +176,7 @@ fun IncidentMapPicker(
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        if (pin == null) "Tap the map to place the incident. Press and hold the pin to move it."
+                        if (pin == null) "Tap the map to place $what. Press and hold the pin to move it."
                         else "Press and hold the pin to move it, or tap to place it again.",
                         style = MaterialTheme.typography.bodyMedium
                     )

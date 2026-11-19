@@ -70,6 +70,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.jonesie.traveldiary.data.Incident
+import net.jonesie.traveldiary.data.MapNote
+import net.jonesie.traveldiary.data.MapNoteCategory
 import net.jonesie.traveldiary.data.TransportType
 import net.jonesie.traveldiary.util.AccentClock
 import net.jonesie.traveldiary.util.FinishSound
@@ -103,7 +105,7 @@ fun PlayTripScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: () -> 
             timeline = null
         } else {
             val trail = viewModel.routePointsFor(tripId)
-            timeline = withContext(Dispatchers.Default) { TripPlayback.build(trail, trip.legs, trip.media, trip.incidents) }
+            timeline = withContext(Dispatchers.Default) { TripPlayback.build(trail, trip.legs, trip.media, trip.incidents, trip.mapNotes) }
         }
     }
 
@@ -235,6 +237,7 @@ private fun PlayerContent(timeline: TripPlayback.Timeline) {
                 when {
                     event?.photo != null -> PhotoCard(event.photo, imageLoader)
                     event?.incident != null -> IncidentCard(event.incident)
+                    event?.note != null -> NoteCard(event.note)
                 }
             }
         }
@@ -304,6 +307,19 @@ private fun PhotoCard(photo: net.jonesie.traveldiary.data.MediaItem, imageLoader
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(10.dp)
         )
+    }
+}
+
+@Composable
+private fun NoteCard(note: MapNote) {
+    Card(modifier = Modifier.fillMaxWidth(0.8f)) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon((note.category ?: MapNoteCategory.OTHER).icon(), contentDescription = null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(36.dp))
+            Column {
+                note.category?.let { Text(it.label(), style = MaterialTheme.typography.labelMedium) }
+                Text(note.text, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
+            }
+        }
     }
 }
 
@@ -404,6 +420,8 @@ private class PlaybackOverlays(private val mapView: MapView, private val timelin
                 event.incident != null && position != null ->
                     addIncidentMarkers(mapView, listOf(event.incident.copy(lat = position.lat, lon = position.lon)))
                 event.photo != null && position != null -> mapView.overlays.add(photoDot(position))
+                event.note != null && position != null ->
+                    addMapNoteMarkers(mapView, listOf(event.note.copy(lat = position.lat, lon = position.lon)), null)
             }
             eventMarkers += mapView.overlays.drop(before)
         }

@@ -122,7 +122,8 @@ fun TripDataExportScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: 
                     media = trip.sortedMedia(),
                     onMapView = { mapView = it },
                     onMapExport = { mapExport = it },
-                    hidden = hiddenArea
+                    hidden = hiddenArea,
+                    mapNotes = trip.mapNotes.filter { it.shareable }
                 )
             }
 

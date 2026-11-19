@@ -7,6 +7,7 @@ import net.jonesie.traveldiary.data.MediaItem
 import net.jonesie.traveldiary.data.MediaType
 import net.jonesie.traveldiary.data.RoutePoint
 import net.jonesie.traveldiary.data.TransportType
+import net.jonesie.traveldiary.data.MapNote
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -261,5 +262,36 @@ class TripPlaybackTest {
         assertTrue(short.movingMs >= 15_000)
         assertTrue(long.movingMs <= 60_000)
         assertTrue(long.movingMs > short.movingMs)
+    }
+
+    @Test
+    fun aNoteStopsWhereTheRoutePassesClosestToIt() {
+        val trail = ride(0, 31)
+        // Half way up the ride, 200 m to the side of it.
+        val note = MapNote(id = 5, tripId = 1, lat = -43.5 + 15 * 0.009, lon = 172.6 + 0.002, text = "Road washed out", createdAt = 1)
+        val timeline = TripPlayback.build(trail, listOf(leg(TransportType.MOTORBIKE, 0, 40)), emptyList(), emptyList(), listOf(note))
+        val event = timeline.events.single()
+        assertEquals(note, event.note)
+        assertEquals(TripPlayback.NOTE_DWELL_MS, event.dwellMs)
+        assertEquals(timeline.totalUnits / 2, event.unit, timeline.totalUnits * 0.05)
+    }
+
+    @Test
+    fun aNoteFarFromTheRouteIsLeftOutOfThePlayback() {
+        val far = MapNote(id = 6, tripId = 1, lat = 10.0, lon = 10.0, text = "Elsewhere", createdAt = 1)
+        val timeline = TripPlayback.build(ride(0, 31), listOf(leg(TransportType.MOTORBIKE, 0, 40)), emptyList(), emptyList(), listOf(far))
+        assertTrue(timeline.events.isEmpty())
+    }
+
+    @Test
+    fun notesAndIncidentsAreShownInRouteOrder() {
+        val trail = ride(0, 31)
+        val early = MapNote(id = 1, tripId = 1, lat = -43.5 + 3 * 0.009, lon = 172.6, text = "Early", createdAt = 1)
+        val timeline = TripPlayback.build(
+            trail, listOf(leg(TransportType.MOTORBIKE, 0, 40)), emptyList(),
+            listOf(incident(t = 20 * minute, lat = -43.5 + 20 * 0.009, lon = 172.6)), listOf(early)
+        )
+        assertNotNull(timeline.events[0].note)
+        assertNotNull(timeline.events[1].incident)
     }
 }

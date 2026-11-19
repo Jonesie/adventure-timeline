@@ -101,6 +101,12 @@ versions for the Play listing are in `docs/play/screenshots/`.*
 - **Google Timeline import**: pulls the trips Google has already detected, with their legs, transport
   and route. Re-importing updates existing trips in place and keeps your manual changes
   (hand-edited transport and titles).
+- **Map notes**: pin a short note (140 characters) to a place on a trip's route: "road washed out", "lots of potholes",
+  "gate locked after 5". Add one from a leg on the Legs tab or with the pin button on the full-screen map, placed by tapping
+  the map or at your location, with an optional kind (hazard, road condition, fuel, food, view). They show as amber pins,
+  pop up during **Play trip**, and can go into a shared post, the shared map picture, the PDF and the GPX/KML file
+  (each note has an "include when sharing" switch; notes inside your hidden home area are always left out). GPX notes
+  import back in, they are part of a backup, and the data export lists them in route order for video captions.
 - **GPX import**: when adding a trip, pick a `.gpx` file from a GPS unit, Strava, Komoot or this app's own
   GPX export (so a route can make a round trip). Its track becomes the trip's route and its name and dates fill in the title and dates. Each track
   becomes legs, split wherever you stopped for five minutes or more (fuel, lunch, overnight), with the transport guessed from the file or

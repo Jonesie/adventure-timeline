@@ -8,6 +8,8 @@ import net.jonesie.traveldiary.data.RoutePoint
 import net.jonesie.traveldiary.data.TransportType
 import net.jonesie.traveldiary.data.Trip
 import net.jonesie.traveldiary.data.TripDetail
+import net.jonesie.traveldiary.data.MapNote
+import net.jonesie.traveldiary.data.MapNoteCategory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -192,5 +194,37 @@ class PostComposerTest {
         val km = RouteShape.trailKm(trail)
         assertTrue("was $km", km in 2.0..2.5)
         assertFalse(km > 50)
+    }
+
+    private fun withNotes(vararg notes: MapNote) =
+        trip(legs = listOf(leg(TransportType.MOTORBIKE, "A", "B", 0, 2))).copy(mapNotes = notes.toList())
+
+    private fun note(id: Long, text: String, category: MapNoteCategory? = null, shareable: Boolean = true, lat: Double = -43.5, legId: Long? = null) =
+        MapNote(id = id, tripId = 1, legId = legId, lat = lat, lon = 172.6, text = text, category = category, createdAt = id, shareable = shareable)
+
+    @Test
+    fun shareableNotesGoInThePostWithTheirKind() {
+        val trip = withNotes(note(1, "Lots of potholes", MapNoteCategory.ROAD), note(2, "Great coffee"), note(3, "Private", shareable = false))
+        val text = PostComposer.buildText(trip, options().copy(includeMapNotes = true), null)
+        assertTrue(text.contains("📍 Notes along the way:\n• Road condition: Lots of potholes\n• Great coffee"))
+        assertFalse(text.contains("Private"))
+    }
+
+    @Test
+    fun theNotesCanBeLeftOutOrHiddenByArea() {
+        val trip = withNotes(note(1, "Near home", lat = -43.50), note(2, "Far away", lat = -43.9))
+        assertFalse(PostComposer.buildText(trip, options().copy(includeMapNotes = false), null).contains("Far away"))
+        val hidden = HiddenArea(-43.50, 172.60, 2.0)
+        val text = PostComposer.buildText(trip, options().copy(hidden = hidden), null)
+        assertFalse(text.contains("Near home"))
+        assertTrue(text.contains("Far away"))
+    }
+
+    @Test
+    fun notesFollowTheOrderOfTheirLegs() {
+        val early = leg(TransportType.CAR, "A", "B", 0, 1).copy(id = 10)
+        val late = leg(TransportType.CAR, "B", "C", 5, 1).copy(id = 11)
+        val trip = trip(legs = listOf(late, early)).copy(mapNotes = listOf(note(1, "On the second", legId = 11), note(2, "On the first", legId = 10)))
+        assertEquals(listOf("On the first", "On the second"), PostComposer.mapNoteLines(trip))
     }
 }

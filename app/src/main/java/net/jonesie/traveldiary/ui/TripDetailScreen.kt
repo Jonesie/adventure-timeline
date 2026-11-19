@@ -85,6 +85,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import net.jonesie.traveldiary.data.Leg
+import net.jonesie.traveldiary.data.MapNote
+import net.jonesie.traveldiary.data.MapNoteCategory
+import net.jonesie.traveldiary.util.MapNotePlace
 import net.jonesie.traveldiary.data.TransportType
 import net.jonesie.traveldiary.data.TripDetail
 import java.text.DateFormat
@@ -122,6 +125,9 @@ fun TripDetailScreen(
     var editingGroup by remember { mutableStateOf<LegGroup?>(null) }
     var deletingGroup by remember { mutableStateOf<LegGroup?>(null) }
     var showBulkTransport by remember { mutableStateOf(false) }
+    var noteEditor by remember { mutableStateOf<NoteEditor?>(null) }
+    var routeForNotes by remember(tripId) { mutableStateOf<List<Pair<Double, Double>>>(emptyList()) }
+    LaunchedEffect(tripId, detail?.legs?.size) { routeForNotes = viewModel.routeForPicker(tripId) }
     // Quietly index gallery photo locations, then count any along this route that aren't in a trip yet.
     var nearbyCount by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(tripId, detail?.media?.size) {
@@ -213,6 +219,14 @@ fun TripDetailScreen(
         if (trip == null) return@Scaffold
         val legGroups = remember(trip.legs) { groupConsecutiveLegs(trip.legs) }
 
+        noteEditor?.let { ed ->
+            MapNoteDialog(
+                tripId = tripId, viewModel = viewModel, note = ed.note, legId = ed.legId,
+                initialPlace = ed.place, startWithPicker = ed.startWithPicker,
+                onDismiss = { noteEditor = null }
+            )
+        }
+
         editingGroup?.let { group ->
             LegEditDialog(
                 group = group,
@@ -291,7 +305,14 @@ fun TripDetailScreen(
             Column(modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
                 when (selectedTab) {
                     0 -> OverviewTab(tripId, viewModel, trip, onOpenMap, onPlay, onOpenMedia, onRate = { viewModel.setTripRating(tripId, it) })
-                    1 -> CappedColumn { LegsTab(legGroups, onEditGroup = { editingGroup = it }) }
+                    1 -> CappedColumn {
+                        LegsTab(
+                            legGroups, trip.legs, MapNotePlace.alongRoute(trip.mapNotes, routeForNotes),
+                            onEditGroup = { editingGroup = it },
+                            onAddNote = { legId, place -> noteEditor = NoteEditor(null, legId, place, startWithPicker = place == null) },
+                            onEditNote = { noteEditor = NoteEditor(it, it.legId, null, startWithPicker = false) }
+                        )
+                    }
                     2 -> MediaTab(trip, importProgress, onPickMedia, onAutoAddMedia, onOpenMedia, nearbyCount, onReviewNearby)
                     3 -> CappedColumn { NotesTab(trip, onEdit) }
                     4 -> CappedColumn { IncidentsTab(trip, viewModel, onAdd = onAddIncident, onEdit = onEditIncident, onOpenMedia = onOpenIncidentMedia) }
@@ -341,7 +362,8 @@ private fun ColumnScope.OverviewTab(
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             RouteMap(
                 tripId, viewModel, trip.legs, modifier = Modifier.fillMaxSize(),
-                media = trip.sortedMedia(), incidents = trip.incidents, onOpenMedia = onOpenMedia
+                media = trip.sortedMedia(), incidents = trip.incidents, onOpenMedia = onOpenMedia,
+                mapNotes = trip.mapNotes
             )
             Surface(
                 shape = CircleShape,
@@ -415,15 +437,55 @@ private fun ColumnScope.OverviewTab(
     }
 }
 
+/** What the note dialog is open for: a new note (from a leg, or from nowhere) or an existing one. */
+private class NoteEditor(val note: MapNote?, val legId: Long?, val place: Pair<Double, Double>?, val startWithPicker: Boolean)
+
 @Composable
-private fun LegsTab(legGroups: List<LegGroup>, onEditGroup: (LegGroup) -> Unit) {
-    if (legGroups.isEmpty()) {
+private fun LegsTab(
+    legGroups: List<LegGroup>,
+    legs: List<Leg>,
+    notes: List<MapNote>,
+    onEditGroup: (LegGroup) -> Unit,
+    onAddNote: (legId: Long?, place: Pair<Double, Double>?) -> Unit,
+    onEditNote: (MapNote) -> Unit
+) {
+    val legIds = legs.map { it.id }.toSet()
+    val loose = notes.filter { it.legId == null || it.legId !in legIds }
+    if (legGroups.isEmpty() && notes.isEmpty()) {
         Text("No legs logged yet", modifier = Modifier.padding(top = 16.dp))
         return
     }
     Text("Tap a leg to edit its transport, difficulty and enjoyment", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp))
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(legGroups) { group -> LegRow(group, onClick = { onEditGroup(group) }) }
+        items(legGroups) { group ->
+            LegRow(group, onClick = { onEditGroup(group) })
+            notes.filter { it.legId in group.legIds }.forEach { note -> NoteLine(note, onClick = { onEditNote(note) }) }
+            val first = legs.firstOrNull { it.id == group.legIds.first() }
+            TextButton(onClick = {
+                onAddNote(
+                    group.legIds.first(),
+                    if (first?.originLat != null && first.originLon != null) first.originLat to first.originLon else null
+                )
+            }) { Text("Add a note to this leg") }
+        }
+        if (loose.isNotEmpty()) {
+            item { SectionHeader("Notes along the route") }
+            items(loose) { note -> NoteLine(note, onClick = { onEditNote(note) }) }
+        }
+        item { TextButton(onClick = { onAddNote(null, null) }) { Text("Add a note on the map") } }
+    }
+}
+
+/** One note under its leg: its kind's icon, then the text. Tap to edit. */
+@Composable
+private fun NoteLine(note: MapNote, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 32.dp, top = 2.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon((note.category ?: MapNoteCategory.OTHER).icon(), contentDescription = note.category?.label() ?: "Note", modifier = Modifier.padding(end = 8.dp).size(18.dp), tint = MaterialTheme.colorScheme.tertiary)
+        Text(note.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        if (!note.shareable) Text("private", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

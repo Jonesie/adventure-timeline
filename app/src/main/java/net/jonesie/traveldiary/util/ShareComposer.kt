@@ -42,7 +42,9 @@ data class ShareOptions(
     val includeCompanions: Boolean,
     val includeNotes: Boolean,
     val photos: List<MediaItem>,
-    val format: ShareFormat
+    val format: ShareFormat,
+    /** The notes pinned to the route that go in the document, already limited to shareable ones. */
+    val mapNotes: List<String> = emptyList()
 )
 
 class ShareResult(val file: File, val text: String)
@@ -241,6 +243,13 @@ object ShareComposer {
                 blocks += TextBlock("Notes", 32f, MUTED, bold = true, gapBelow = 4f)
                 blocks += TextBlock(notes, 38f, INK, gapBelow = 24f)
                 plain.append("\n\n").append(notes)
+            }
+
+            if (options.mapNotes.isNotEmpty()) {
+                blocks += TextBlock("Notes along the way", 32f, MUTED, bold = true, gapBelow = 4f)
+                options.mapNotes.forEach { line -> blocks += TextBlock("• $line", 38f, INK, gapBelow = 6f) }
+                blocks += SpacerBlock(18f)
+                plain.append("\n\nNotes along the way:").append(options.mapNotes.joinToString("") { "\n• $it" })
             }
 
             // The PDF stores photos losslessly, so keep them smaller there to keep the file shareable.

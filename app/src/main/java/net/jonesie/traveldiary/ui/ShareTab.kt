@@ -107,6 +107,8 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
     var includeRoute by remember { mutableStateOf(saved.includeRoute) }
     var includeLegs by remember { mutableStateOf(saved.includeLegs) }
     var includeIncidents by remember { mutableStateOf(saved.includeIncidents) }
+    var includeMapNotes by remember { mutableStateOf(saved.includeMapNotes) }
+    val sharedNoteCount = trip.mapNotes.count { it.shareable }
     var showPreview by remember { mutableStateOf(false) }
     var routeKm by remember { mutableStateOf<Double?>(null) }
     LaunchedEffect(tripId, trip.legs) {
@@ -122,10 +124,10 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
     }
 
     val photos = remember(trip.media) { trip.sortedMedia().filter { it.type == MediaType.PHOTO } }
-    val postContent = remember(trip, title, message, includeDates, includeRating, includeRoute, includeLegs, includeIncidents, includeCompanions, includeNotes, hiddenArea, routeKm) {
+    val postContent = remember(trip, title, message, includeDates, includeRating, includeRoute, includeLegs, includeIncidents, includeCompanions, includeNotes, includeMapNotes, hiddenArea, routeKm) {
         PostComposer.build(
             trip,
-            PostOptions(title, message, includeDates, includeRating, includeRoute, includeLegs, includeIncidents, includeCompanions, includeNotes, hiddenArea),
+            PostOptions(title, message, includeDates, includeRating, includeRoute, includeLegs, includeIncidents, includeCompanions, includeNotes, hiddenArea, includeMapNotes),
             routeKm
         )
     }
@@ -157,7 +159,8 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                 media = trip.sortedMedia(),
                 onMapView = { mapView = it },
                 onMapExport = { mapExport = it },
-                hidden = hiddenArea
+                hidden = hiddenArea,
+                mapNotes = if (includeMapNotes) trip.mapNotes.filter { it.shareable } else emptyList()
             )
         }
     }
@@ -185,6 +188,7 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                 item { SwitchRow("Hide my home area (${homeSettings.radiusKm} km) from the track", hideHome) { hideHome = it } }
             }
             item { SwitchRow("Incidents (${trip.incidents.size} logged, as waypoints)", includeIncidents) { includeIncidents = it; saved.includeIncidents = it } }
+            if (sharedNoteCount > 0) item { SwitchRow("Map notes ($sharedNoteCount, as waypoints)", includeMapNotes) { includeMapNotes = it; saved.includeMapNotes = it } }
             item {
                 Text(
                     "The route you recorded, with the places you went and any incidents as waypoints, for mapping apps, GPS units and Google Earth.",
@@ -206,6 +210,7 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                 item { SwitchRow("Each leg (from → to, transport)" + if (trip.legs.isEmpty()) " (none logged)" else "", includeLegs) { includeLegs = it; saved.includeLegs = it } }
                 item { SwitchRow("Incidents (${trip.incidents.size} logged, highlighted in the post)", includeIncidents) { includeIncidents = it; saved.includeIncidents = it } }
             }
+            if (sharedNoteCount > 0) item { SwitchRow("Map notes ($sharedNoteCount along the route)", includeMapNotes) { includeMapNotes = it; saved.includeMapNotes = it } }
             item { SwitchRow("Companions" + if (trip.companions.isEmpty()) " (none logged)" else "", includeCompanions) { includeCompanions = it; saved.includeCompanions = it } }
             item { SectionHeader("Words") }
             item {
@@ -323,8 +328,9 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                         val name = title.trim().ifEmpty { trip.trip.title }
                         val trail = viewModel.routePointsFor(tripId)
                         val incidents = if (includeIncidents) trip.incidents else emptyList()
-                        val content = if (format == ShareFormat.GPX) TripTrack.gpx(name, trip.trip.startDate, trail, trip.legs, incidents, hiddenArea)
-                        else TripTrack.kml(name, trip.trip.startDate, trail, trip.legs, incidents, hiddenArea)
+                        val notes = if (includeMapNotes) trip.mapNotes else emptyList()
+                        val content = if (format == ShareFormat.GPX) TripTrack.gpx(name, trip.trip.startDate, trail, trip.legs, incidents, hiddenArea, notes)
+                        else TripTrack.kml(name, trip.trip.startDate, trail, trip.legs, incidents, hiddenArea, notes)
                         shareTrack(context, name, format, content)
                         return@launch
                     }
@@ -343,7 +349,8 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                         includeCompanions = includeCompanions,
                         includeNotes = includeNotes,
                         photos = photos.filter { it.id in selectedPhotos },
-                        format = format
+                        format = format,
+                        mapNotes = if (includeMapNotes) PostComposer.mapNoteLines(trip, hiddenArea) else emptyList()
                     )
                     val result = ShareComposer.compose(context, trip, snapshot, options)
                     val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", result.file)
