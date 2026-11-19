@@ -111,6 +111,10 @@ versions for the Play listing are in `docs/play/screenshots/`.*
   GPX export (so a route can make a round trip). Its track becomes the trip's route and its name and dates fill in the title and dates. Each track
   becomes legs, split wherever you stopped for five minutes or more (fuel, lunch, overnight), with the transport guessed from the file or
   from how fast it moved. Edit it on the leg if it guessed wrong. It's read on the phone and never uploaded.
+- **Feature counts** (Settings → Usage): simple counters on the phone for how often features such as sharing, exporting and
+  Play trip are used, so the developer can see what is worth building next. Only numbers are kept, never titles, places, names or
+  photos, and nothing is sent anywhere. You can see them, clear them, switch counting off, or add them to a feedback email
+  (off by default).
 - **"Have I been here before?"**: tap the compass icon to list earlier notes and media recorded
   within about 1 km of where you are now.
 - **Place names**: looked up with Android's Geocoder. Local places show just the town or suburb;

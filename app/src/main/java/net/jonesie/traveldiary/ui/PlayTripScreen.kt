@@ -1,5 +1,7 @@
 package net.jonesie.traveldiary.ui
 
+import net.jonesie.traveldiary.util.UsageMetrics
+import net.jonesie.traveldiary.util.Metric
 import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.Paint
@@ -144,6 +146,7 @@ private fun PlayerContent(timeline: TripPlayback.Timeline) {
     var playing by remember(timeline) { mutableStateOf(true) }
     var speed by rememberSaveable { mutableFloatStateOf(1f) }
     var soundOn by rememberSaveable { mutableStateOf(true) }
+    LaunchedEffect(timeline) { UsageMetrics.record(Metric.PLAYED_TRIP) }
     var unit by remember(timeline) { mutableFloatStateOf(0f) }
     var active by remember(timeline) { mutableStateOf<TripPlayback.Event?>(null) }
     var finished by remember(timeline) { mutableStateOf(false) }
@@ -201,6 +204,7 @@ private fun PlayerContent(timeline: TripPlayback.Timeline) {
             if (session.finished) {
                 playing = false
                 finished = true
+                UsageMetrics.record(Metric.FINISHED_TRIP_PLAY)
                 if (latestSound) {
                     val celebration = FinishSound.pick(Random.Default, lastFinish)
                     lastFinish = celebration
@@ -278,7 +282,10 @@ private fun PlayerContent(timeline: TripPlayback.Timeline) {
                         FilterChip(selected = speed == s, onClick = { speed = s }, label = { Text("${s.toInt()}x") })
                     }
                     Box(modifier = Modifier.weight(1f))
-                    IconButton(onClick = { soundOn = !soundOn }) {
+                    IconButton(onClick = {
+                        soundOn = !soundOn
+                        if (!soundOn) UsageMetrics.record(Metric.MUTED_PLAY_SOUND)
+                    }) {
                         Icon(
                             if (soundOn) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
                             contentDescription = if (soundOn) "Mute sound effects" else "Turn on sound effects"

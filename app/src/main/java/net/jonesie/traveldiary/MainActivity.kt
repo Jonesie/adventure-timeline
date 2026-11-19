@@ -1,5 +1,6 @@
 package net.jonesie.traveldiary
 
+import net.jonesie.traveldiary.util.UsageMetrics
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -66,6 +67,7 @@ class MainActivity : ComponentActivity() {
         // The manifest theme is the launch splash background; switch to the normal one before drawing.
         setTheme(R.style.Theme_TravelDiary)
         super.onCreate(savedInstanceState)
+        UsageMetrics.init(this)
         setContent {
             val viewModel: TravelDiaryViewModel = viewModel()
             val themeMode by viewModel.themeMode.collectAsState()

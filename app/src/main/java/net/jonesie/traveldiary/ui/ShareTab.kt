@@ -1,5 +1,7 @@
 package net.jonesie.traveldiary.ui
 
+import net.jonesie.traveldiary.util.UsageMetrics
+import net.jonesie.traveldiary.util.Metric
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -90,6 +92,7 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
     val scope = rememberCoroutineScope()
     val imageLoader = rememberMediaImageLoader()
     val dark = isDarkTheme()
+    LaunchedEffect(Unit) { UsageMetrics.record(Metric.SHARE_TAB_OPENED) }
 
     var mapView by remember { mutableStateOf<MapView?>(null) }
     var title by remember(trip.trip.title) { mutableStateOf(trip.trip.title) }
@@ -332,12 +335,14 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                         val content = if (format == ShareFormat.GPX) TripTrack.gpx(name, trip.trip.startDate, trail, trip.legs, incidents, hiddenArea, notes)
                         else TripTrack.kml(name, trip.trip.startDate, trail, trip.legs, incidents, hiddenArea, notes)
                         shareTrack(context, name, format, content)
+                        UsageMetrics.record(if (format == ShareFormat.GPX) Metric.SHARED_GPX else Metric.SHARED_KML)
                         return@launch
                     }
                     val snapshot = if (includeMap) mapView?.let { captureMapImage(it, mapExport, dark) } else null
                     if (format == ShareFormat.POST) {
                         val files = PostComposer.writeImages(context, postContent, snapshot, photos.filter { it.id in selectedPhotos })
                         sharePost(context, title.trim().ifEmpty { trip.trip.title }, PostComposer.withFooter(postText), files)
+                        UsageMetrics.record(Metric.SHARED_POST)
                         return@launch
                     }
                     val options = ShareOptions(
@@ -363,6 +368,7 @@ fun ColumnScope.ShareTab(tripId: Long, viewModel: TravelDiaryViewModel, trip: Tr
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
                     context.startActivity(Intent.createChooser(send, "Share trip"))
+                    UsageMetrics.record(if (format == ShareFormat.PDF) Metric.SHARED_PDF else Metric.SHARED_PICTURE)
                 } catch (e: Exception) {
                     Toast.makeText(context, e.message ?: "Couldn't prepare the share", Toast.LENGTH_LONG).show()
                 } finally {

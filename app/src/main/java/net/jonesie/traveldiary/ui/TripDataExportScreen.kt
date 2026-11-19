@@ -1,5 +1,7 @@
 package net.jonesie.traveldiary.ui
 
+import net.jonesie.traveldiary.util.UsageMetrics
+import net.jonesie.traveldiary.util.Metric
 import android.content.ClipData
 import android.content.Intent
 import android.widget.Toast
@@ -150,6 +152,7 @@ fun TripDataExportScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: 
                                 Toast.makeText(context, "${result.mediaMissing} files couldn't be read and are listed as missing", Toast.LENGTH_LONG).show()
                             }
                             context.startActivity(Intent.createChooser(send, "Share trip data"))
+                            UsageMetrics.record(Metric.EXPORTED_TRIP_DATA)
                         } catch (e: Exception) {
                             Toast.makeText(context, e.message ?: "Couldn't export the trip", Toast.LENGTH_LONG).show()
                         } finally {

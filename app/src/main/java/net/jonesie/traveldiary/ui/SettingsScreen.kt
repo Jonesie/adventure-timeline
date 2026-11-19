@@ -14,7 +14,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Email
@@ -39,6 +41,7 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -57,6 +60,7 @@ import kotlinx.coroutines.launch
 import net.jonesie.traveldiary.util.DiaryBackup
 import net.jonesie.traveldiary.util.DuplicateCopies
 import net.jonesie.traveldiary.util.UpdateCheck
+import net.jonesie.traveldiary.util.UsageMetrics
 import net.jonesie.traveldiary.util.UpdateResult
 import java.text.DateFormat
 import java.text.SimpleDateFormat
@@ -157,9 +161,14 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
             }
         }
     }
+    val usage = remember { UsageMetrics.instance }
+    var countingOn by remember { mutableStateOf(usage?.enabled ?: false) }
+    var countsInFeedback by remember { mutableStateOf(usage?.includeInFeedback ?: false) }
+    var showUsage by remember { mutableStateOf(false) }
     fun sendFeedback() {
         runCatching {
-            val body = "\n\n---\nVersion $installedVersion, Android ${android.os.Build.VERSION.RELEASE}"
+            var body = "\n\n---\nVersion $installedVersion, Android ${android.os.Build.VERSION.RELEASE}"
+            if (usage != null && usage.enabled && usage.includeInFeedback) body += "\n" + usage.report()
             // Subject and body go in the mailto: URI itself; many email apps ignore EXTRA_TEXT on ACTION_SENDTO.
             val uri = android.net.Uri.parse(
                 "mailto:adventuretimeline@jonesie.net.nz?subject=" + android.net.Uri.encode("Adventure Timeline feedback") +
@@ -188,6 +197,17 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
     }
     val openBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) viewModel.restoreBackup(uri) { result = it }
+    }
+
+    if (showUsage && usage != null) {
+        var report by remember { mutableStateOf(usage.report()) }
+        AlertDialog(
+            onDismissRequest = { showUsage = false },
+            title = { Text("What's counted") },
+            text = { Text(report + "\n\nThese are the only things counted, and only as numbers.", modifier = Modifier.verticalScroll(rememberScrollState())) },
+            confirmButton = { TextButton(onClick = { showUsage = false }) { Text("Close") } },
+            dismissButton = { TextButton(onClick = { usage.reset(); report = usage.report() }) { Text("Clear counts") } }
+        )
     }
 
     Scaffold(
@@ -228,6 +248,34 @@ fun SettingsScreen(viewModel: TravelDiaryViewModel, onBack: () -> Unit, onImport
                 subtitle = "Opens your email app with a new message to adventuretimeline@jonesie.net.nz. Report a bug, suggest a feature, or just say hello.",
                 onClick = { sendFeedback() }
             )
+
+            SectionHeader("Usage")
+            SettingSwitchRow(
+                icon = { Icon(Icons.Filled.BarChart, contentDescription = null) },
+                title = "Count which features I use",
+                subtitle = "Keeps simple counts on this phone, such as how many times you've shared a trip. Never any titles, places, names or photos, and nothing is sent anywhere. Turning it off clears the counts.",
+                checked = countingOn,
+                onChange = {
+                    countingOn = it
+                    usage?.enabled = it
+                    if (!it) { countsInFeedback = false; usage?.includeInFeedback = false }
+                }
+            )
+            if (countingOn) {
+                SettingRow(
+                    icon = { Icon(Icons.Filled.Visibility, contentDescription = null) },
+                    title = "See what's counted",
+                    subtitle = "The list of counts held on this phone, and a way to clear them.",
+                    onClick = { showUsage = true }
+                )
+                SettingSwitchRow(
+                    icon = { Icon(Icons.Filled.Email, contentDescription = null) },
+                    title = "Add the counts to my feedback email",
+                    subtitle = "Tell the developer which features get used. They go in the email body, where you can read or delete them before sending.",
+                    checked = countsInFeedback,
+                    onChange = { countsInFeedback = it; usage?.includeInFeedback = it }
+                )
+            }
 
             SectionHeader("Appearance")
             SettingRow(
@@ -623,6 +671,18 @@ private fun SectionHeader(text: String) {
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp)
+    )
+}
+
+@Composable
+private fun SettingSwitchRow(icon: @Composable () -> Unit, title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    ListItem(
+        leadingContent = icon,
+        headlineContent = { Text(title) },
+        supportingContent = { Text(subtitle) },
+        trailingContent = { Switch(checked = checked, onCheckedChange = onChange) },
+        colors = ListItemDefaults.colors(),
+        modifier = Modifier.clickable { onChange(!checked) }
     )
 }
 

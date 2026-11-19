@@ -1,5 +1,7 @@
 package net.jonesie.traveldiary.ui
 
+import net.jonesie.traveldiary.util.UsageMetrics
+import net.jonesie.traveldiary.util.Metric
 import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
@@ -113,6 +115,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             val tripId = dao.insertTrip(Trip(title = title, startDate = startDate, endDate = endDate, notes = notes))
             if (route != null) {
+                UsageMetrics.record(Metric.IMPORTED_GPX)
                 withContext(Dispatchers.IO) { dao.insertRoutePoints(route.toRoutePoints(tripId, startDate).sortedBy { it.timestamp }) }
                 insertGpxLegs(tripId, route.toLegs(startDate))
                 if (route.notes.isNotEmpty()) {
@@ -210,6 +213,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         tripId: Long?, legId: Long?, type: MediaType, uri: String, caption: String, lat: Double?, lon: Double?,
         incidentId: Long? = null
     ) {
+        UsageMetrics.record(Metric.ADDED_CAPTURED_MEDIA)
         viewModelScope.launch {
             dao.insertMediaItem(
                 MediaItem(
@@ -310,6 +314,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
     fun addIncident(incident: Incident, people: List<String> = emptyList(), onDone: (Long) -> Unit = {}) {
         viewModelScope.launch {
             val id = dao.insertIncident(incident)
+            UsageMetrics.record(Metric.LOGGED_INCIDENT)
             saveIncidentPeople(id, people)
             assignIncidentsToTrips()
             onDone(id)
@@ -374,6 +379,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         val legId = matched ?: (existing?.legId ?: fallbackLegId)?.takeIf { id -> legs.any { it.id == id } }
         val clean = MapNotePlace.clean(text)
         if (existing == null) {
+            UsageMetrics.record(Metric.ADDED_MAP_NOTE)
             dao.insertMapNote(MapNote(tripId = tripId, legId = legId, lat = lat, lon = lon, text = clean, category = category, createdAt = System.currentTimeMillis(), shareable = shareable))
         } else {
             dao.updateMapNote(existing.copy(legId = legId, lat = lat, lon = lon, text = clean, category = category, shareable = shareable))
@@ -623,6 +629,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         onDone: (added: Int, failed: Int) -> Unit
     ) {
         if (uris.isEmpty()) return
+        UsageMetrics.record(Metric.ADDED_GALLERY_MEDIA)
         viewModelScope.launch {
             val context = getApplication<Application>()
             var added = 0
@@ -668,6 +675,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         val existing = dao.getMediaUris(tripId).toHashSet()
         val found = withContext(Dispatchers.IO) { CameraRoll.find(context, window.first, window.last) }
         val fresh = found.filter { it.uri.toString() !in existing }
+        if (fresh.isNotEmpty()) UsageMetrics.record(Metric.ADDED_GALLERY_MEDIA)
         dao.insertMediaItems(
             fresh.map { MediaItem(tripId = tripId, type = it.type, uri = it.uri.toString(), timestamp = it.takenAt) }
         )
@@ -831,6 +839,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
 
     /** Adds photos/videos already on the phone by reference (nothing is copied). */
     fun addPhoneMedia(tripId: Long, items: List<CameraRoll.Item>) {
+        if (items.isNotEmpty()) UsageMetrics.record(Metric.ADDED_GALLERY_MEDIA)
         viewModelScope.launch {
             val existing = dao.getMediaUris(tripId).toHashSet()
             dao.insertMediaItems(
@@ -955,6 +964,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
             }.fold(
                 onSuccess = {
                     recordBackupDone()
+                    UsageMetrics.record(Metric.BACKED_UP)
                     buildString {
                         append("Backed up ${it.trips} trips and ${it.files} photo/video/audio files (${formatBytes(it.bytes)}).")
                         if (it.savedBytes == null || it.savedBytes != it.bytes) {
@@ -979,6 +989,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
                     .also { _incidentReasons.value = IncidentReasons.load(getApplication()) }
             }.fold(
                 onSuccess = {
+                    UsageMetrics.record(Metric.RESTORED)
                     buildString {
                         append("Restored ${it.trips} trips and ${it.files} media files.")
                         if (it.skipped > 0) append(" ${it.skipped} files were missing from the backup.")

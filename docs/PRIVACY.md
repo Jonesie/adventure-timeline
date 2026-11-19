@@ -6,7 +6,7 @@ permalink: /privacy/
 
 # Adventure Timeline — Privacy Policy
 
-_Last updated: 31 October 2026_
+_Last updated: 20 November 2026_
 
 Adventure Timeline is a personal travel diary for Android. It is built to keep your information **on your own phone**. This policy explains what the app stores, what it asks permission for and why, and the few times it talks to the internet.
 
@@ -25,6 +25,7 @@ Everything below is created by you or imported by you, and is kept in the app's 
 - **Incidents:** when you log something that went wrong (a spill, a wrong turn, a breakdown), the app stores what it was, how bad, when, a note, where (only if you let it tag your location) and any photos or videos you attach.
 - **A home area:** the app works out roughly where "home" is from where your trips usually start and end (or uses a place you choose, or none). It is used only on your phone, to avoid suggesting photos taken at home for a trip and to leave home off maps you share.
 - **Settings:** your theme, sort order, map view, home area and reminder choices.
+- **Feature counts:** simple counters of how many times you have used features such as sharing, exporting or playing a trip (see "Feature counts" below).
 
 This data never leaves your phone unless you do one of the things listed under "Backups and sharing". The app's source code is public, so you can check these statements for yourself.
 
@@ -58,6 +59,12 @@ These happen only when you ask for them:
 
 - **Backup.** "Back up diary" writes a zip file to a location **you** choose (for example Google Drive or your Downloads folder). You control where it goes. The file is not encrypted by the app, so keep it somewhere you trust. "Restore from backup" reads a zip you pick.
 - **Sharing a trip.** The Share tab builds a picture or PDF of a trip (title, map, notes, chosen photos) and hands it to the Android share sheet. It goes wherever **you** send it, and what that app does with it is governed by that app's policy. The map and photos can reveal where you have been; the Share tab offers to leave your home area off the map. Photos are re-saved for sharing, which removes the location data embedded in them.
+
+## Feature counts
+
+To help decide what to build next, the app keeps a few counters **on your phone**: how many times you have shared a trip (by type), exported data, played a trip, imported a file, backed up, logged an incident and similar. They are numbers only. They never include trip titles, notes, places, coordinates, photos, names or contacts, and the app does not use any device, advertising or user identifier.
+
+The counters are not sent anywhere. The only way they leave your phone is if you turn on **Settings → Usage → Add the counts to my feedback email**, which is off by default; they are then written into the body of the email, where you can read or delete them before sending it. You can see every count in **Settings → Usage → See what's counted**, clear them there, or switch counting off, which also clears them.
 
 ## Keeping and deleting your data
 

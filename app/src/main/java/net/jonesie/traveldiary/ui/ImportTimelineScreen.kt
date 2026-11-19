@@ -1,5 +1,7 @@
 package net.jonesie.traveldiary.ui
 
+import net.jonesie.traveldiary.util.UsageMetrics
+import net.jonesie.traveldiary.util.Metric
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -148,6 +150,7 @@ fun ImportTimelineScreen(
                                     importProgress = ImportProgress(index + 1, chosen.size, dateRange, status)
                                 }
                             }
+                            UsageMetrics.record(Metric.IMPORTED_TIMELINE)
                             importing = false
                             importProgress = null
                             onImported()
