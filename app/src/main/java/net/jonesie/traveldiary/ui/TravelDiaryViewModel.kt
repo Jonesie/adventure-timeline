@@ -33,6 +33,7 @@ import androidx.room.withTransaction
 import net.jonesie.traveldiary.data.RoutePoint
 import net.jonesie.traveldiary.util.ActivityLeg
 import net.jonesie.traveldiary.util.GpxLeg
+import net.jonesie.traveldiary.util.IncidentPlace
 import net.jonesie.traveldiary.util.GpxRoute
 import net.jonesie.traveldiary.util.NEARBY_RADIUS_DEGREES_SQUARED
 import net.jonesie.traveldiary.util.CameraRoll
@@ -333,8 +334,8 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
             val trips = dao.getAllTrips()
             waiting.forEach { incident ->
                 val trip = trips.firstOrNull { incident.timestamp in TripTimeWindow.of(it) } ?: return@forEach
-                val place = if (incident.lat == null) routePositionAt(trip.id, incident.timestamp) else null
-                dao.assignIncident(incident.id, trip.id, place?.first, place?.second)
+                val fit = placeIncident(trip.id, incident.timestamp)
+                dao.assignIncident(incident.id, trip.id, fit.leg?.id, fit.lat.takeIf { incident.lat == null }, fit.lon.takeIf { incident.lat == null })
                 dao.assignIncidentMedia(incident.id, trip.id)
             }
         }
@@ -343,16 +344,12 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
-     * Where the trip's GPS trail was around [timestamp], for incidents logged after the fact. Null when
-     * the trail doesn't come within [maxGapMs] of that moment.
+     * Where an incident at [timestamp] on this trip most likely happened, and on which leg: from the GPS trail if
+     * it has a point close to that moment, otherwise from the legs' own times (see [IncidentPlace]).
      */
-    suspend fun routePositionAt(tripId: Long, timestamp: Long, maxGapMs: Long = 30 * 60_000L): Pair<Double, Double>? =
-        withContext(Dispatchers.IO) {
-            dao.getRoutePointsForTrip(tripId)
-                .minByOrNull { Math.abs(it.timestamp - timestamp) }
-                ?.takeIf { Math.abs(it.timestamp - timestamp) <= maxGapMs }
-                ?.let { it.lat to it.lon }
-        }
+    suspend fun placeIncident(tripId: Long, timestamp: Long): IncidentPlace.Fit = withContext(Dispatchers.IO) {
+        IncidentPlace.fit(timestamp, dao.getRoutePointsForTrip(tripId), dao.getLegsForTrip(tripId))
+    }
 
     /**
      * Called sequentially (one trip at a time) from the import screen's own coroutine so

@@ -195,8 +195,11 @@ interface TravelDiaryDao {
     @Query("SELECT * FROM incidents WHERE tripId IS NULL")
     suspend fun getUnassignedIncidents(): List<Incident>
 
-    @Query("UPDATE incidents SET tripId = :tripId, lat = COALESCE(lat, :lat), lon = COALESCE(lon, :lon) WHERE id = :id")
-    suspend fun assignIncident(id: Long, tripId: Long, lat: Double?, lon: Double?)
+    @Query("UPDATE incidents SET tripId = :tripId, legId = COALESCE(legId, :legId), lat = COALESCE(lat, :lat), lon = COALESCE(lon, :lon) WHERE id = :id")
+    suspend fun assignIncident(id: Long, tripId: Long, legId: Long?, lat: Double?, lon: Double?)
+
+    @Query("SELECT * FROM legs WHERE tripId = :tripId ORDER BY startTime")
+    suspend fun getLegsForTrip(tripId: Long): List<Leg>
 
     @Query("UPDATE media_items SET tripId = :tripId WHERE incidentId = :incidentId AND tripId IS NULL")
     suspend fun assignIncidentMedia(incidentId: Long, tripId: Long)
