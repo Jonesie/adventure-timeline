@@ -29,7 +29,7 @@ fun EditTripScreen(
 
     AddTripScreen(
         onBack = onBack,
-        onSave = { title, notes, companions, startDate, endDate ->
+        onSave = { title, notes, companions, startDate, endDate, _ ->
             viewModel.updateTrip(tripId, title, notes, companions, startDate, endDate, onSaved)
         },
         initialTitle = trip.trip.title,

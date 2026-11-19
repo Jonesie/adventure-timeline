@@ -201,13 +201,15 @@ private fun TravelDiaryApp() {
         composable("addTrip") {
             AddTripScreen(
                 onBack = { navController.popBackStack() },
-                onSave = { title, notes, companions, startDate, endDate ->
+                allowGpxImport = true,
+                onSave = { title, notes, companions, startDate, endDate, route ->
                     viewModel.addTrip(
                         title = title,
                         startDate = startDate,
                         endDate = endDate,
                         notes = notes,
-                        companionNames = companions
+                        companionNames = companions,
+                        route = route
                     ) { tripId ->
                         navController.popBackStack()
                         navController.navigate("tripDetail/$tripId")

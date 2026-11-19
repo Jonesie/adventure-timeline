@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.runtime.LaunchedEffect
@@ -14,6 +15,12 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.jonesie.traveldiary.util.ContactsHelper
+import net.jonesie.traveldiary.util.GpxImport
+import net.jonesie.traveldiary.util.GpxRoute
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,14 +55,15 @@ import java.util.Date
 @Composable
 fun AddTripScreen(
     onBack: () -> Unit,
-    onSave: (title: String, notes: String, companions: List<String>, startDate: Long, endDate: Long?) -> Unit,
+    onSave: (title: String, notes: String, companions: List<String>, startDate: Long, endDate: Long?, route: GpxRoute?) -> Unit,
     initialTitle: String = "",
     initialNotes: String = "",
     initialCompanions: String = "",
     initialStartDate: Long = System.currentTimeMillis(),
     initialEndDate: Long? = null,
     screenTitle: String = "New trip",
-    saveLabel: String = "Save trip"
+    saveLabel: String = "Save trip",
+    allowGpxImport: Boolean = false
 ) {
     var title by remember { mutableStateOf(initialTitle) }
     var notes by remember { mutableStateOf(initialNotes) }
@@ -63,8 +71,40 @@ fun AddTripScreen(
     var startDate by remember { mutableStateOf(initialStartDate) }
     var endDate by remember { mutableStateOf(initialEndDate) }
 
-    // Suggest people from the phone's contacts while typing a companion's name.
     val context = LocalContext.current
+
+    // A GPX file (from a GPS unit, Strava, Komoot...) can supply the route, dates and a title.
+    var route by remember { mutableStateOf<GpxRoute?>(null) }
+    var gpxError by remember { mutableStateOf<String?>(null) }
+    var reading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val pickGpx = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            reading = true
+            gpxError = null
+            scope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.openInputStream(uri)?.use { GpxImport.parse(it) }
+                            ?: throw GpxImport.InvalidGpx("Couldn't open that file.")
+                    }
+                }
+                reading = false
+                result.onSuccess { r ->
+                    route = r
+                    if (title.isBlank()) {
+                        title = r.name ?: ("Trip, " + DateFormat.getDateInstance().format(Date(r.startTime ?: startDate)))
+                    }
+                    r.startTime?.let { startDate = it }
+                    r.endTime?.let { endDate = it }
+                }.onFailure { e ->
+                    gpxError = (e as? GpxImport.InvalidGpx)?.message ?: "Couldn't read that file."
+                }
+            }
+        }
+    }
+
+    // Suggest people from the phone's contacts while typing a companion's name.
     var hasContacts by remember { mutableStateOf(ContactsHelper.hasPermission(context)) }
     val askContacts = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasContacts = it }
     val typing = companions.substringAfterLast(',').trim()
@@ -88,7 +128,28 @@ fun AddTripScreen(
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
+            if (allowGpxImport) {
+                val loaded = route
+                if (loaded == null) {
+                    OutlinedButton(
+                        onClick = { pickGpx.launch(arrayOf("*/*")) },
+                        enabled = !reading,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (reading) "Reading file…" else "Import a GPX file") }
+                    gpxError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp)) }
+                } else {
+                    val span = if (loaded.startTime != null && loaded.endTime != null) {
+                        " · " + DateFormat.getDateInstance().format(Date(loaded.startTime!!)) + " – " +
+                            DateFormat.getDateInstance().format(Date(loaded.endTime!!))
+                    } else ""
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text("Route from GPX: ${loaded.points.size} points$span", modifier = Modifier.weight(1f))
+                        TextButton(onClick = { route = null }) { Text("Remove") }
+                    }
+                }
+                androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
+            }
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -142,7 +203,8 @@ fun AddTripScreen(
                         notes.trim(),
                         companions.split(",").map { it.trim() }.filter { it.isNotEmpty() },
                         startDate,
-                        endDate
+                        endDate,
+                        route
                     )
                 },
                 enabled = title.isNotBlank()
