@@ -42,14 +42,19 @@ PHOTOS, VIDEO AND VOICE NOTES
 
 INCIDENT REPORTING
 Log what went wrong the moment it happens: a fall, a breakdown, a flat tyre, a wrong turn, bad weather,
-an injury. Record how bad it was, who was involved and why, with notes and photos. Incidents appear on your
-maps and in your stats, so the lessons stay with the trip.
+an injury. Record how bad it was, who was involved and why, with notes and photos. Pick where it happened on
+the map, or let the app place it from your route. Incidents appear on your maps and in your stats, so the
+lessons stay with the trip.
+
+MAP NOTES
+Pin a short note to a place on your route: "road washed out", "lots of potholes", "gate locked after 5". Choose
+a kind (hazard, road, fuel, food, view), and see them as pins on the map, in Play trip, and in what you share.
 
 PLAY YOUR TRIP BACK
-Tap play on a trip's map and watch it unfold: the route draws itself with your vehicle travelling along it, your photos pop up with their captions where you took them, and incidents stop the show with a sound. Pause, scrub, speed it up or mute it.
+Tap play on a trip's map and watch it unfold: the route draws itself with your vehicle travelling along it, your photos pop up with their captions where you took them, and incidents and map notes appear as you pass them. Pause, scrub, speed it up or mute it.
 
 SHARE YOUR JOURNEY
-Compose a trip post with the route map, a caption, your incidents and your best photos, then share it through
+Compose a trip post with the route map, a caption, your incidents, map notes and your best photos, then share it through
 any app. Or export a single picture, a PDF, or the route as a GPX or KML file. You can hide your home area from
 shared maps.
 

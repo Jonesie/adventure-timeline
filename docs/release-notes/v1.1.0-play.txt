@@ -1,0 +1,2 @@
+New: Map notes. Pin a short note like "road washed out" to a place on a trip. Notes show on the map, pop up in Play trip, and can be shared or exported.
+Also: import a GPX file when adding a trip (split into legs at your stops), and choose an incident's location on a map.
