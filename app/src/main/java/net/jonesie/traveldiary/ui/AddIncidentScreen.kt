@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.IncidentCategory
+import net.jonesie.traveldiary.util.IncidentPlace
 import net.jonesie.traveldiary.util.LocationHelper
 import net.jonesie.traveldiary.util.TripTimeWindow
 import java.text.DateFormat
@@ -126,6 +127,12 @@ fun AddIncidentScreen(
     val zone = ZoneId.systemDefault()
     val dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp), zone)
 
+    // Where the place will come from if it isn't tagged with the current location.
+    var placeFit by remember { mutableStateOf<IncidentPlace.Fit?>(null) }
+    LaunchedEffect(selectedTripId, timestamp) {
+        placeFit = selectedTripId?.let { viewModel.placeIncident(it, timestamp) }
+    }
+
     fun save() {
         val chosen = category ?: return
         saving = true
@@ -134,13 +141,14 @@ fun AddIncidentScreen(
             var lon = existing?.lon
             if (recent && tagLocation && LocationHelper.hasPermission(context)) {
                 LocationHelper.lastKnownLocation(context)?.let { lat = it.latitude; lon = it.longitude }
-            } else if (lat == null && selectedTripId != null) {
-                viewModel.routePositionAt(selectedTripId!!, timestamp)?.let { lat = it.first; lon = it.second }
             }
+            // No place of its own (not tagged, or no fix): work it out from the trip's route and legs at that time.
+            val fit = selectedTripId?.let { viewModel.placeIncident(it, timestamp) }
+            if (lat == null && fit != null) { lat = fit.lat; lon = fit.lon }
             val saved = (existing ?: Incident(category = chosen, timestamp = timestamp)).copy(
                 tripId = selectedTripId,
                 // A leg belongs to its trip, so moving the incident to another trip drops it.
-                legId = if (selectedTripId == existing?.tripId) existing?.legId else null,
+                legId = fit?.leg?.id ?: if (selectedTripId == existing?.tripId) existing?.legId else null,
                 category = chosen, severity = severity, notes = notes.trim(), timestamp = timestamp, lat = lat, lon = lon,
                 reason = reason, involvesMe = involvesMe
             )
@@ -323,9 +331,10 @@ fun AddIncidentScreen(
                     Checkbox(checked = tagLocation, onCheckedChange = { tagLocation = it })
                     Text("Tag with my current location")
                 }
-            } else {
+            }
+            if (!(recent && tagLocation)) {
                 Text(
-                    "The place is taken from your trip's route at that time once the trip is imported.",
+                    placeNote(selectedTripId != null, existing?.lat != null, placeFit),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp)
@@ -405,5 +414,26 @@ fun AddIncidentScreen(
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
         )
+    }
+}
+
+/** Says where an incident's place will come from when it isn't tagged with the current location. */
+internal fun placeNote(hasTrip: Boolean, hasOwnPlace: Boolean, fit: IncidentPlace.Fit?): String {
+    if (hasOwnPlace) return "It keeps the location it already has."
+    if (!hasTrip) return "Without a trip, the place is worked out from its route and legs once a trip covers that time."
+    if (fit == null) return "Working out the place from the trip…"
+    fun legName(): String {
+        val leg = fit.leg ?: return "a leg"
+        val from = leg.originName.ifBlank { null }
+        val to = leg.destinationName.ifBlank { null }
+        return if (from != null && to != null) "$from → $to" else "a leg"
+    }
+    return when (fit.source) {
+        IncidentPlace.Source.TRAIL -> "Placed on your trip's route at that time."
+        IncidentPlace.Source.LEG -> "Placed along your leg ${legName()}, judged from its times."
+        IncidentPlace.Source.NEAREST_LEG -> "No leg covers that time, so it's placed at the end of the nearest one (${legName()})."
+        IncidentPlace.Source.NONE ->
+            if (fit.leg != null) "That leg has no place to use, so the incident is saved without a location."
+            else "Nothing on the trip fits that time, so the incident is saved without a location."
     }
 }
