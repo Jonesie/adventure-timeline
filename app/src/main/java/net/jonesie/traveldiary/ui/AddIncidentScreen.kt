@@ -56,6 +56,10 @@ import kotlinx.coroutines.launch
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.IncidentCategory
 import net.jonesie.traveldiary.util.IncidentPlace
+import net.jonesie.traveldiary.util.ReverseGeocoder
+import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import net.jonesie.traveldiary.util.LocationHelper
 import net.jonesie.traveldiary.util.TripTimeWindow
 import java.text.DateFormat
@@ -95,6 +99,10 @@ fun AddIncidentScreen(
     var notes by remember { mutableStateOf("") }
     var timestamp by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var tagLocation by remember { mutableStateOf(incidentId == null) }
+    // A place chosen on the map, which beats the other ways of placing it. Null until the user picks one.
+    var pickedPlace by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    var pickedName by remember { mutableStateOf<String?>(null) }
+    var picking by remember { mutableStateOf(false) }
     var selectedTripId by remember { mutableStateOf(tripId) }
     val trips by viewModel.trips.collectAsState()
     var showDate by remember { mutableStateOf(false) }
@@ -127,6 +135,13 @@ fun AddIncidentScreen(
     val zone = ZoneId.systemDefault()
     val dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp), zone)
 
+    LaunchedEffect(pickedPlace) {
+        val p = pickedPlace
+        pickedName = if (p == null) null else withContext(Dispatchers.IO) {
+            runCatching { ReverseGeocoder.lookup(context, p.first, p.second)?.format(false) }.getOrNull()
+        }
+    }
+
     // Where the place will come from if it isn't tagged with the current location.
     var placeFit by remember { mutableStateOf<IncidentPlace.Fit?>(null) }
     LaunchedEffect(selectedTripId, timestamp) {
@@ -137,14 +152,18 @@ fun AddIncidentScreen(
         val chosen = category ?: return
         saving = true
         scope.launch {
-            var lat = existing?.lat
-            var lon = existing?.lon
-            if (recent && tagLocation && LocationHelper.hasPermission(context)) {
-                LocationHelper.lastKnownLocation(context)?.let { lat = it.latitude; lon = it.longitude }
-            }
-            // No place of its own (not tagged, or no fix): work it out from the trip's route and legs at that time.
+            val current = if (pickedPlace == null && recent && tagLocation && LocationHelper.hasPermission(context)) {
+                LocationHelper.lastKnownLocation(context)?.let { it.latitude to it.longitude }
+            } else null
+            // The place the trip's own route and legs suggest, for when nothing was chosen or tagged.
             val fit = selectedTripId?.let { viewModel.placeIncident(it, timestamp) }
-            if (lat == null && fit != null) { lat = fit.lat; lon = fit.lon }
+            val place = IncidentPlace.choose(
+                picked = pickedPlace, current = current,
+                existing = existing?.let { e -> if (e.lat != null && e.lon != null) e.lat to e.lon else null },
+                fit = fit
+            )
+            val lat = place?.first
+            val lon = place?.second
             val saved = (existing ?: Incident(category = chosen, timestamp = timestamp)).copy(
                 tripId = selectedTripId,
                 // A leg belongs to its trip, so moving the incident to another trip drops it.
@@ -159,6 +178,22 @@ fun AddIncidentScreen(
         }
     }
     val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { save() }
+
+    if (picking) {
+        BackHandler { picking = false }
+        IncidentMapPicker(
+            tripId = selectedTripId,
+            viewModel = viewModel,
+            initial = pickedPlace ?: existing?.let { e -> if (e.lat != null && e.lon != null) e.lat to e.lon else null },
+            onDone = { lat, lon ->
+                pickedPlace = lat to lon
+                tagLocation = false
+                picking = false
+            },
+            onCancel = { picking = false }
+        )
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -328,11 +363,24 @@ fun AddIncidentScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 8.dp)
                 ) {
-                    Checkbox(checked = tagLocation, onCheckedChange = { tagLocation = it })
+                    Checkbox(checked = tagLocation, onCheckedChange = { tagLocation = it; if (it) pickedPlace = null })
                     Text("Tag with my current location")
                 }
             }
-            if (!(recent && tagLocation)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                OutlinedButton(onClick = { picking = true }) { Text(if (pickedPlace == null) "Choose on map" else "Move on map") }
+                if (pickedPlace != null) {
+                    TextButton(onClick = { pickedPlace = null }) { Text("Clear") }
+                }
+            }
+            pickedPlace?.let { p ->
+                Text(
+                    "Placed on the map" + (pickedName?.let { " near $it" } ?: ": %.4f, %.4f".format(p.first, p.second)),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            if (pickedPlace == null && !(recent && tagLocation)) {
                 Text(
                     placeNote(selectedTripId != null, existing?.lat != null, placeFit),
                     style = MaterialTheme.typography.bodySmall,

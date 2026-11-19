@@ -25,6 +25,13 @@ object IncidentPlace {
         val hasPlace: Boolean get() = lat != null && lon != null
     }
 
+    /**
+     * The place to save: one chosen on the map wins, then the phone's current location, then a place the incident
+     * already had, then the one worked out from the trip ([fit]). Null when none of them has a place.
+     */
+    fun choose(picked: Pair<Double, Double>?, current: Pair<Double, Double>?, existing: Pair<Double, Double>?, fit: Fit?): Pair<Double, Double>? =
+        picked ?: current ?: existing ?: if (fit != null && fit.lat != null && fit.lon != null) fit.lat to fit.lon else null
+
     const val MAX_TRAIL_GAP_MS = 30 * 60_000L
     const val MAX_LEG_GAP_MS = 2 * 60 * 60_000L
 
