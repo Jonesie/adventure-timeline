@@ -142,6 +142,10 @@ fun MapPlacePicker(
                             setPoints(route.map { GeoPoint(it.first, it.second) })
                             outlinePaint.color = 0xFF1565C0.toInt()
                             outlinePaint.strokeWidth = 6f * density
+                            // A tap on the line is the most likely way to place the pin. Left alone, the line takes the tap
+                            // and opens an empty info bubble instead.
+                            infoWindow = null
+                            setOnClickListener { _, map, point -> place(point, map.zoomLevelDouble); true }
                         })
                     }
                     shownPin?.let { p ->
