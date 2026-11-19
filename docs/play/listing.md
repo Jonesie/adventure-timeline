@@ -25,7 +25,8 @@ other way of getting from A to B.
 IMPORT YOUR TRIPS, THEN MAKE THEM YOURS
 Bring in the trips Google Maps Timeline has already detected, with their legs, transport and route. Then add
 what Timeline can't: star ratings, photos, voice notes and the story of the day. Re-import any time; your own
-edits are kept.
+edits are kept. Recorded a ride on a GPS unit, Strava or Komoot? Import its GPX file too, and the route is split
+into legs at your stops.
 
 TRIP LOG AND ROUTE MAP
 • Every trip has dates, notes, companions and a 1-5 star rating

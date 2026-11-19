@@ -71,7 +71,8 @@ versions for the Play listing are in `docs/play/screenshots/`.*
 - **Share tab** on each trip: compose a title, the framed route map, a caption, companions (optional),
   notes and up to 7 photos, then share it through the phone's share sheet as a **post** (a written
   caption with the trip's dates, length, transport and route, plus the map and each photo as separate pictures),
-  a single high-resolution picture, or a PDF. The post text can be edited, and is copied to the clipboard
+  a single high-resolution picture, or a PDF, or just the route as a **GPX or KML file** (legs, and incidents if included,
+  come along as waypoints, for mapping apps, GPS units and Google Earth; the home area can be left out). The post text can be edited, and is copied to the clipboard
   because Facebook and Instagram ignore text sent from another app. The route is redrawn sharp over the map tiles so it stays readable when zoomed. The home area can be hidden from the shared map.
   The map on the Share tab can be collapsed to leave more room; it is still shared as you framed it.
   Everything shared ends with a footer linking to the project website (with the app icon on a picture or PDF); a switch turns it off.
@@ -101,7 +102,7 @@ versions for the Play listing are in `docs/play/screenshots/`.*
   and route. Re-importing updates existing trips in place and keeps your manual changes
   (hand-edited transport and titles).
 - **GPX import**: when adding a trip, pick a `.gpx` file from a GPS unit, Strava, Komoot or this app's own
-  export. Its track becomes the trip's route and its name and dates fill in the title and dates. Each track
+  GPX export (so a route can make a round trip). Its track becomes the trip's route and its name and dates fill in the title and dates. Each track
   becomes legs, split wherever you stopped for five minutes or more (fuel, lunch, overnight), with the transport guessed from the file or
   from how fast it moved. Edit it on the leg if it guessed wrong. It's read on the phone and never uploaded.
 - **"Have I been here before?"**: tap the compass icon to list earlier notes and media recorded
