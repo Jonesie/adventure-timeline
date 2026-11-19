@@ -119,4 +119,15 @@ class IncidentPlaceTest {
         assertTrue(placeNote(true, false, IncidentPlace.fit(at(0.5), listOf(p(-43.0, 172.0, 0.5)), emptyList())).startsWith("Placed on your trip's route"))
         assertTrue(placeNote(true, false, IncidentPlace.fit(at(30.0), emptyList(), listOf(first))).contains("without a location"))
     }
+
+    @Test
+    fun aPlaceChosenOnTheMapWinsOverEverythingElse() {
+        val fit = IncidentPlace.fit(at(0.5), emptyList(), listOf(first))
+        val map = 1.0 to 2.0
+        assertEquals(map, IncidentPlace.choose(map, 3.0 to 4.0, 5.0 to 6.0, fit))
+        assertEquals(3.0 to 4.0, IncidentPlace.choose(null, 3.0 to 4.0, 5.0 to 6.0, fit))
+        assertEquals(5.0 to 6.0, IncidentPlace.choose(null, null, 5.0 to 6.0, fit))
+        assertEquals(fit.lat!! to fit.lon!!, IncidentPlace.choose(null, null, null, fit))
+        assertNull(IncidentPlace.choose(null, null, null, IncidentPlace.fit(at(30.0), emptyList(), emptyList())))
+    }
 }

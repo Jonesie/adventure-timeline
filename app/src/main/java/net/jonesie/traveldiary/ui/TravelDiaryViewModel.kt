@@ -343,6 +343,22 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         dao.addIncidentPeopleToTrips()
     }
 
+    /** The trip's route as lat/lon pairs for picking a place on it: the GPS trail, thinned, else the legs' stops in order. */
+    suspend fun routeForPicker(tripId: Long): List<Pair<Double, Double>> = withContext(Dispatchers.IO) {
+        val trail = dao.getRoutePointsForTrip(tripId).sortedBy { it.timestamp }
+        if (trail.isNotEmpty()) {
+            val step = (trail.size + 1999) / 2000
+            trail.filterIndexed { i, _ -> step <= 1 || i % step == 0 || i == trail.lastIndex }.map { it.lat to it.lon }
+        } else {
+            dao.getLegsForTrip(tripId).flatMap { leg ->
+                listOfNotNull(
+                    if (leg.originLat != null && leg.originLon != null) leg.originLat to leg.originLon else null,
+                    if (leg.destinationLat != null && leg.destinationLon != null) leg.destinationLat to leg.destinationLon else null
+                )
+            }
+        }
+    }
+
     /**
      * Where an incident at [timestamp] on this trip most likely happened, and on which leg: from the GPS trail if
      * it has a point close to that moment, otherwise from the legs' own times (see [IncidentPlace]).
