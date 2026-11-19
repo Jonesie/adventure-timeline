@@ -5,6 +5,8 @@ import net.jonesie.traveldiary.data.IncidentCategory
 import net.jonesie.traveldiary.data.Leg
 import net.jonesie.traveldiary.data.RoutePoint
 import net.jonesie.traveldiary.data.TransportType
+import net.jonesie.traveldiary.data.MapNote
+import net.jonesie.traveldiary.data.MapNoteCategory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -77,5 +79,38 @@ class TripTrackTest {
         val gpx = TripTrack.gpx("Nothing", start, emptyList(), emptyList(), emptyList(), null)
         assertFalse(gpx.contains("<trk>"))
         assertTrue(gpx.trimEnd().endsWith("</gpx>"))
+    }
+
+    private fun mapNote(id: Long, lat: Double, lon: Double, text: String, category: MapNoteCategory? = null, shareable: Boolean = true) =
+        MapNote(id = id, tripId = 1, lat = lat, lon = lon, text = text, category = category, createdAt = 1000L + id, shareable = shareable)
+
+    @Test
+    fun shareableNotesAreWaypointsTypedAsNotes() {
+        val notes = listOf(
+            mapNote(1, -43.51, 172.61, "Road <washed> out", MapNoteCategory.HAZARD),
+            mapNote(2, -43.52, 172.62, "Lots of potholes"),
+            mapNote(3, -43.50, 172.60, "Keep this to myself", shareable = false)
+        )
+        val gpx = TripTrack.gpx("Ride", start, trail, emptyList(), emptyList(), null, notes)
+        assertTrue(gpx.contains("<name>Road &lt;washed&gt; out</name><desc>Hazard</desc><type>note/hazard</type>"))
+        assertTrue(gpx.contains("<name>Lots of potholes</name><type>note</type>"))
+        assertFalse(gpx.contains("Keep this to myself"))
+        // A note's time is when it was written, not when the rider passed, so none is written.
+        assertFalse(Regex("<wpt[^>]*><time>[^<]*</time><name>Lots").containsMatchIn(gpx))
+    }
+
+    @Test
+    fun notesInsideTheHiddenHomeAreLeftOut() {
+        val notes = listOf(mapNote(1, -43.50, 172.60, "Near home"), mapNote(2, -43.52, 172.62, "Far away"))
+        val gpx = TripTrack.gpx("Ride", start, trail, emptyList(), emptyList(), HiddenArea(-43.50, 172.60, 2.0), notes)
+        assertFalse(gpx.contains("Near home"))
+        assertTrue(gpx.contains("Far away"))
+    }
+
+    @Test
+    fun kmlHasPlacemarksForNotes() {
+        val kml = TripTrack.kml("Ride", start, trail, emptyList(), emptyList(), null, listOf(mapNote(1, -43.51, 172.61, "Gate locked after 5")))
+        assertTrue(kml.contains("<name>Gate locked after 5</name>"))
+        assertTrue(kml.contains("<Point><coordinates>172.610000,-43.510000,0</coordinates></Point>"))
     }
 }

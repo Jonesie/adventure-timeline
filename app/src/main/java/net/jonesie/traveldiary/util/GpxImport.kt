@@ -1,5 +1,7 @@
 package net.jonesie.traveldiary.util
 
+import net.jonesie.traveldiary.data.MapNote
+import net.jonesie.traveldiary.data.MapNoteCategory
 import net.jonesie.traveldiary.data.RoutePoint
 import net.jonesie.traveldiary.data.TransportType
 import org.xml.sax.Attributes
@@ -13,6 +15,9 @@ import javax.xml.parsers.SAXParserFactory
 /** One recorded position from a GPX file. [time] is null when the file doesn't say when. */
 class GpxPoint(val lat: Double, val lon: Double, val time: Long?, val track: Int = 0)
 
+/** A waypoint that Adventure Timeline itself wrote as a map note (its `<type>` starts with "note"), read back in. */
+class GpxNote(val lat: Double, val lon: Double, val text: String, val category: MapNoteCategory?)
+
 /** A stretch of the route that becomes one leg of the trip. Times are epoch millis. */
 class GpxLeg(
     val transport: TransportType,
@@ -22,7 +27,12 @@ class GpxLeg(
 )
 
 /** What a GPX file holds that a trip can use: the route, and the name and time span if it has them. */
-class GpxRoute(val name: String?, val points: List<GpxPoint>, val trackTypes: List<String?> = emptyList()) {
+class GpxRoute(
+    val name: String?,
+    val points: List<GpxPoint>,
+    val trackTypes: List<String?> = emptyList(),
+    val notes: List<GpxNote> = emptyList()
+) {
     val hasTimes: Boolean get() = points.isNotEmpty() && points.all { it.time != null }
     val startTime: Long? get() = points.firstNotNullOfOrNull { it.time }
     val endTime: Long? get() = points.lastOrNull { it.time != null }?.time
@@ -116,6 +126,12 @@ object GpxImport {
 
     class InvalidGpx(message: String) : Exception(message)
 
+    /** The `<type>` a map note is written with in a GPX file: "note", or "note/hazard" when it has a kind. */
+    fun noteType(category: MapNoteCategory?): String = if (category == null) "note" else "note/" + category.name.lowercase()
+
+    private fun noteCategory(type: String): MapNoteCategory? =
+        type.substringAfter('/', "").trim().uppercase().let { name -> MapNoteCategory.entries.firstOrNull { it.name == name } }
+
     /** Throws [InvalidGpx] for a file that isn't GPX, is malformed, or has no route points. */
     fun parse(input: InputStream, minSpacingMetres: Double = DEFAULT_MIN_SPACING_METRES): GpxRoute {
         val handler = Handler(minSpacingMetres)
@@ -133,7 +149,7 @@ object GpxImport {
         if (!handler.sawGpx) throw InvalidGpx("That doesn't look like a GPX file.")
         val points = handler.result()
         if (points.isEmpty()) throw InvalidGpx("That GPX file has no route in it, only waypoints.")
-        return GpxRoute(handler.name, points, handler.types())
+        return GpxRoute(handler.name, points, handler.types(), handler.notes)
     }
 
     /**
@@ -188,6 +204,14 @@ object GpxImport {
         private var trackNo = -1
         private var routeNo = -1
         val trackTypes = ArrayList<String?>()
+        val notes = ArrayList<GpxNote>()
+        private var inWpt = false
+        private var wptLat = 0.0
+        private var wptLon = 0.0
+        private var wptBad = false
+        private var wptName: String? = null
+        private var wptType: String? = null
+        private var wptDesc: String? = null
         private val routeTypes = ArrayList<String?>()
 
         private val path = ArrayList<String>()
@@ -224,6 +248,15 @@ object GpxImport {
             }
             path.add(tag)
             text.setLength(0)
+            if (tag == "wpt") {
+                inWpt = true
+                wptName = null; wptType = null; wptDesc = null
+                val la = attrs.getValue("lat")?.toDoubleOrNull()
+                val lo = attrs.getValue("lon")?.toDoubleOrNull()
+                wptBad = la == null || lo == null || la !in -90.0..90.0 || lo !in -180.0..180.0
+                wptLat = la ?: 0.0
+                wptLon = lo ?: 0.0
+            }
             if (tag == "trk") { trackNo++; trackTypes.add(null) }
             if (tag == "rte") { routeNo++; routeTypes.add(null) }
             if (tag == "trkpt" || tag == "rtept") {
@@ -245,12 +278,22 @@ object GpxImport {
             val tag = qName.substringAfter(':')
             when (tag) {
                 "time" -> if (inPoint) time = parseTime(text.toString())
-                "name" -> if (name == null && !inPoint) {
+                "name" -> if (inWpt && path.getOrNull(path.size - 2) == "wpt") wptName = text.toString().trim() else if (name == null && !inPoint) {
                     // Prefer the file's own name, then the first track's.
                     val parent = path.getOrNull(path.size - 2)
                     if (parent == "metadata" || parent == "trk") text.toString().trim().takeIf { it.isNotEmpty() }?.let { name = it }
                 }
-                "type" -> if (!inPoint) {
+                "desc" -> if (inWpt && path.getOrNull(path.size - 2) == "wpt") wptDesc = text.toString().trim()
+                "wpt" -> {
+                    inWpt = false
+                    val type = wptType
+                    if (!wptBad && type != null && type.trim().lowercase().startsWith("note")) {
+                        // The name holds the note's text; a file from another app may use the description instead.
+                        val body = MapNotePlace.clean(wptName?.takeIf { it.isNotEmpty() } ?: wptDesc.orEmpty())
+                        if (body.isNotEmpty()) notes += GpxNote(wptLat, wptLon, body, noteCategory(type))
+                    }
+                }
+                "type" -> if (inWpt && path.getOrNull(path.size - 2) == "wpt") wptType = text.toString().trim() else if (!inPoint) {
                     val v = text.toString().trim().takeIf { it.isNotEmpty() }
                     when (path.getOrNull(path.size - 2)) {
                         "trk" -> if (trackNo >= 0) trackTypes[trackNo] = v

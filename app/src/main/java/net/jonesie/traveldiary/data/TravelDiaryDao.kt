@@ -201,6 +201,15 @@ interface TravelDiaryDao {
     @Query("SELECT * FROM legs WHERE tripId = :tripId ORDER BY startTime")
     suspend fun getLegsForTrip(tripId: Long): List<Leg>
 
+    @Insert suspend fun insertMapNote(note: MapNote): Long
+    @Update suspend fun updateMapNote(note: MapNote)
+    @Query("DELETE FROM map_notes WHERE id = :id") suspend fun deleteMapNote(id: Long)
+    @Query("SELECT * FROM map_notes WHERE id = :id") suspend fun getMapNote(id: Long): MapNote?
+    @Query("SELECT * FROM map_notes WHERE tripId = :tripId ORDER BY createdAt, id") suspend fun getMapNotesForTrip(tripId: Long): List<MapNote>
+    @Query("SELECT * FROM map_notes ORDER BY id") suspend fun getAllMapNotes(): List<MapNote>
+    @Query("UPDATE map_notes SET legId = :legId WHERE id = :id") suspend fun setMapNoteLeg(id: Long, legId: Long?)
+    @Insert suspend fun insertMapNotes(items: List<MapNote>)
+
     @Query("UPDATE media_items SET tripId = :tripId WHERE incidentId = :incidentId AND tripId IS NULL")
     suspend fun assignIncidentMedia(incidentId: Long, tripId: Long)
 

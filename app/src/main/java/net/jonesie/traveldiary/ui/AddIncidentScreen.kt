@@ -181,7 +181,7 @@ fun AddIncidentScreen(
 
     if (picking) {
         BackHandler { picking = false }
-        IncidentMapPicker(
+        MapPlacePicker(
             tripId = selectedTripId,
             viewModel = viewModel,
             initial = pickedPlace ?: existing?.let { e -> if (e.lat != null && e.lon != null) e.lat to e.lon else null },

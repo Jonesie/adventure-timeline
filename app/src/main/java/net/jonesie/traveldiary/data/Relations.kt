@@ -35,7 +35,9 @@ data class TripDetail(
     @Relation(parentColumn = "id", entityColumn = "tripId")
     val media: List<MediaItem>,
     @Relation(parentColumn = "id", entityColumn = "tripId")
-    val incidents: List<Incident>
+    val incidents: List<Incident>,
+    @Relation(parentColumn = "id", entityColumn = "tripId")
+    val mapNotes: List<MapNote> = emptyList()
 )
 
 /** One row per (trip, kind of media) pair, so the diary list can show photo/video and audio icons. */

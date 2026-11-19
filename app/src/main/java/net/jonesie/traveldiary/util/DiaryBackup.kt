@@ -13,6 +13,8 @@ import kotlinx.coroutines.withContext
 import net.jonesie.traveldiary.data.Companion
 import net.jonesie.traveldiary.data.foldLegacyImpressions
 import net.jonesie.traveldiary.data.Incident
+import net.jonesie.traveldiary.data.MapNote
+import net.jonesie.traveldiary.data.MapNoteCategory
 import net.jonesie.traveldiary.data.IncidentCategory
 import net.jonesie.traveldiary.data.IncidentPersonCrossRef
 import net.jonesie.traveldiary.data.Leg
@@ -166,6 +168,18 @@ object DiaryBackup {
             }
             writer.endArray()
 
+            writer.name("mapNotes").beginArray()
+            dao.getAllMapNotes().forEach { n ->
+                writer.beginObject()
+                writer.put("id", n.id); writer.put("tripId", n.tripId); writer.put("legId", n.legId)
+                writer.put("lat", n.lat); writer.put("lon", n.lon)
+                writer.put("text", n.text); writer.put("category", n.category?.name)
+                writer.put("createdAt", n.createdAt)
+                writer.name("shareable").value(n.shareable)
+                writer.endObject()
+            }
+            writer.endArray()
+
             writer.name("incidentPeople").beginArray()
             dao.getAllIncidentPeople().forEach { r ->
                 writer.beginObject()
@@ -255,7 +269,8 @@ object DiaryBackup {
         val incidents: List<Incident>,
         val incidentPeople: List<IncidentPersonCrossRef>,
         val incidentReasons: List<String>?,
-        val routes: List<RoutePoint>
+        val routes: List<RoutePoint>,
+        val mapNotes: List<MapNote> = emptyList()
     )
 
     private class ParsedMedia(val item: MediaItem, val file: String?)
@@ -320,6 +335,7 @@ object DiaryBackup {
                     dao.insertCompanions(data.companions)
                     dao.insertCrossRefs(data.crossRefs)
                     dao.insertLegs(data.legs)
+                    dao.insertMapNotes(data.mapNotes)
                     dao.insertMediaItems(mediaItems)
                     dao.insertIncidents(data.incidents)
                     dao.insertIncidentPeople(data.incidentPeople)
@@ -352,6 +368,7 @@ object DiaryBackup {
         val oldImpressions = mutableListOf<Triple<Long, Long, String>>()
         val incidents = mutableListOf<Incident>()
         val incidentPeople = mutableListOf<IncidentPersonCrossRef>()
+        val mapNotes = mutableListOf<MapNote>()
         var incidentReasons: MutableList<String>? = null
         val routes = mutableListOf<RoutePoint>()
 
@@ -412,6 +429,15 @@ object DiaryBackup {
                         involvesMe = m["involvesMe"] as? Boolean ?: true
                     )
                 }
+                "mapNotes" -> readObjects(reader) { m ->
+                    mapNotes += MapNote(
+                        id = m.long("id"), tripId = m.long("tripId"), legId = m.longOrNull("legId"),
+                        lat = m.doubleOrNull("lat") ?: 0.0, lon = m.doubleOrNull("lon") ?: 0.0,
+                        text = m.string("text"),
+                        category = m.stringOrNull("category")?.let { name -> MapNoteCategory.entries.firstOrNull { it.name == name } },
+                        createdAt = m.long("createdAt"), shareable = m["shareable"] as? Boolean ?: true
+                    )
+                }
                 "incidentPeople" -> readObjects(reader) { m ->
                     incidentPeople += IncidentPersonCrossRef(m.long("incidentId"), m.long("companionId"))
                 }
@@ -460,7 +486,7 @@ object DiaryBackup {
             val entries = oldImpressions.filter { it.first == trip.id }.map { it.second to it.third }
             if (entries.isEmpty()) trip else trip.copy(notes = foldLegacyImpressions(trip.notes, entries))
         }
-        return Parsed(folded, companions, crossRefs, legs, media, incidents, incidentPeople, incidentReasons, routes)
+        return Parsed(folded, companions, crossRefs, legs, media, incidents, incidentPeople, incidentReasons, routes, mapNotes)
     }
 
     class Estimate(val appFilesBytes: Long, val cameraRollBytes: Long)

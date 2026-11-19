@@ -3,7 +3,11 @@ package net.jonesie.traveldiary.ui
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddLocationAlt
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import net.jonesie.traveldiary.data.MapNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -23,6 +27,16 @@ import androidx.compose.ui.text.style.TextOverflow
 fun FullScreenMapScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: () -> Unit, onPlay: () -> Unit, onOpenMedia: (Int) -> Unit) {
     val detail by remember(tripId) { viewModel.tripDetail(tripId) }.collectAsState(initial = null)
     val trip = detail
+    var noteEditor by remember { mutableStateOf<MapNote?>(null) }
+    var addingNote by remember { mutableStateOf(false) }
+
+    if (addingNote || noteEditor != null) {
+        MapNoteDialog(
+            tripId = tripId, viewModel = viewModel, note = noteEditor, legId = null, initialPlace = null,
+            startWithPicker = noteEditor == null,
+            onDismiss = { addingNote = false; noteEditor = null }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -34,6 +48,11 @@ fun FullScreenMapScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: (
                     }
                 },
                 actions = {
+                    if (trip != null) {
+                        IconButton(onClick = { addingNote = true }) {
+                            Icon(Icons.Filled.AddLocationAlt, contentDescription = "Add a note on the map")
+                        }
+                    }
                     if (trip?.legs?.isNotEmpty() == true) {
                         IconButton(onClick = onPlay) {
                             Icon(Icons.Filled.PlayArrow, contentDescription = "Play trip")
@@ -51,7 +70,9 @@ fun FullScreenMapScreen(tripId: Long, viewModel: TravelDiaryViewModel, onBack: (
                 modifier = Modifier.fillMaxSize().padding(padding),
                 media = trip.sortedMedia(),
                 incidents = trip.incidents,
-                onOpenMedia = onOpenMedia
+                onOpenMedia = onOpenMedia,
+                mapNotes = trip.mapNotes,
+                onOpenNote = { noteEditor = it }
             )
         }
     }

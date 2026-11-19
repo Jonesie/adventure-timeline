@@ -242,6 +242,23 @@ object TripExport {
                 }
                 w.endArray()
 
+                // --- map notes: short facts pinned to the route, in the order it passes them (ready-made video captions) ---
+                val routePairs = trail.map { it.lat to it.lon }
+                val sharedNotes = trip.mapNotes.filter { it.shareable && !isHidden(it.lat, it.lon) }
+                w.name("mapNotes").beginArray()
+                MapNotePlace.alongRoute(sharedNotes, routePairs).forEachIndexed { index, n ->
+                    w.beginObject()
+                    w.put("number", index + 1L)
+                    w.put("text", n.text)
+                    w.put("category", n.category?.name)
+                    w.put("leg", legIndexOf(n.legId))
+                    w.put("lat", n.lat); w.put("lon", n.lon)
+                    w.put("place", placeFor(n.lat, n.lon))
+                    RouteSnap.fractionAlong(n.lat, n.lon, routePairs)?.let { w.put("positionAlongRoute", it) }
+                    w.endObject()
+                }
+                w.endArray()
+
                 // --- media, in the order taken ---
                 onProgress("Looking up place names…")
                 w.name("media").beginArray()

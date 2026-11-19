@@ -1,6 +1,8 @@
 package net.jonesie.traveldiary.util
 
 import net.jonesie.traveldiary.data.RoutePoint
+import net.jonesie.traveldiary.data.MapNote
+import net.jonesie.traveldiary.data.MapNoteCategory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -243,5 +245,41 @@ class GpxImportTest {
     fun filesWithoutTimesAreNotSplitAtStops() {
         val xml = """<gpx><trk><trkseg><trkpt lat="1" lon="2"/><trkpt lat="1" lon="2"/><trkpt lat="1.05" lon="2"/></trkseg></trk></gpx>"""
         assertEquals(1, parse(xml).toLegs(0).size)
+    }
+
+    @Test
+    fun waypointsTypedAsNotesComeBackAsNotes() {
+        val xml = """<gpx>
+            <wpt lat="46.5" lon="7.5"><name>Road washed out</name><desc>Hazard</desc><type>note/hazard</type></wpt>
+            <wpt lat="46.6" lon="7.6"><name>Lots of potholes</name><type>note</type></wpt>
+            <wpt lat="46.7" lon="7.7"><name>Hut</name></wpt>
+            <wpt lat="95" lon="7.7"><name>Nowhere</name><type>note</type></wpt>
+            <trk><trkseg><trkpt lat="46.0" lon="7.0"/><trkpt lat="46.1" lon="7.1"/></trkseg></trk></gpx>"""
+        val r = parse(xml)
+        assertEquals(2, r.notes.size)
+        assertEquals("Road washed out", r.notes[0].text)
+        assertEquals(MapNoteCategory.HAZARD, r.notes[0].category)
+        assertEquals(46.5, r.notes[0].lat, 1e-9)
+        assertNull(r.notes[1].category)
+        // Plain waypoints and the track's own name are untouched.
+        assertEquals(2, r.points.size)
+        assertNull(r.name)
+    }
+
+    @Test
+    fun ourOwnNotesRoundTripThroughAnExport() {
+        val start = 1_790_000_000_000L
+        val trail = listOf(
+            RoutePoint(tripId = 1, lat = -43.50, lon = 172.60, timestamp = start),
+            RoutePoint(tripId = 1, lat = -43.51, lon = 172.61, timestamp = start + 60_000)
+        )
+        val notes = listOf(
+            MapNote(id = 1, tripId = 1, lat = -43.505, lon = 172.605, text = "Ford: knee deep & fast", category = MapNoteCategory.ROAD, createdAt = 5),
+            MapNote(id = 2, tripId = 1, lat = -43.509, lon = 172.609, text = "Fuel here", category = MapNoteCategory.FUEL, createdAt = 6)
+        )
+        val back = parse(TripTrack.gpx("Ride", start, trail, emptyList(), emptyList(), null, notes))
+        assertEquals(listOf("Ford: knee deep & fast", "Fuel here"), back.notes.map { it.text })
+        assertEquals(listOf(MapNoteCategory.ROAD, MapNoteCategory.FUEL), back.notes.map { it.category })
+        assertEquals(-43.505, back.notes[0].lat, 1e-6)
     }
 }

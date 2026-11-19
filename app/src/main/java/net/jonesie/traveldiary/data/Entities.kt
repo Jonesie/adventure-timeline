@@ -177,3 +177,40 @@ data class GalleryIndexItem(
     val lat: Double?,
     val lon: Double?
 )
+
+/** What kind of fact a [MapNote] records. Stored by name, so only ever add to the end of the list. */
+enum class MapNoteCategory {
+    HAZARD, ROAD, FUEL, FOOD, VIEW, OTHER
+}
+
+/**
+ * A short fact about a place along a trip's route ("road washed out", "lots of potholes", "gate locked after 5").
+ * It belongs to the trip and, when it can be told which, to a leg of it. The leg is only a convenience that
+ * is worked out from the place, so a leg disappearing (a Timeline re-import replaces them) just clears
+ * [legId] and the note is matched to a leg again, instead of being lost.
+ */
+@Entity(
+    tableName = "map_notes",
+    foreignKeys = [
+        ForeignKey(entity = Trip::class, parentColumns = ["id"], childColumns = ["tripId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = Leg::class, parentColumns = ["id"], childColumns = ["legId"], onDelete = ForeignKey.SET_NULL)
+    ],
+    indices = [Index("tripId"), Index("legId")]
+)
+data class MapNote(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val tripId: Long,
+    val legId: Long? = null,
+    val lat: Double,
+    val lon: Double,
+    val text: String,
+    val category: MapNoteCategory? = null,
+    val createdAt: Long,
+    // Whether it goes into what's shared or exported; the user can keep a note to themselves.
+    @ColumnInfo(defaultValue = "1") val shareable: Boolean = true
+) {
+    companion object {
+        /** Short enough for a popup, a line of a post and a video caption. */
+        const val MAX_TEXT = 140
+    }
+}

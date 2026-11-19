@@ -2,6 +2,7 @@ package net.jonesie.traveldiary.util
 
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.Leg
+import net.jonesie.traveldiary.data.MapNote
 import net.jonesie.traveldiary.data.MediaItem
 import net.jonesie.traveldiary.data.MediaType
 import net.jonesie.traveldiary.data.RoutePoint
@@ -29,9 +30,12 @@ object TripPlayback {
 
     const val PHOTO_DWELL_MS = 2400L
     const val INCIDENT_DWELL_MS = 3600L
+    const val NOTE_DWELL_MS = 3200L
 
     private const val TIME_SLACK_MS = 60 * 60 * 1000L
     private const val MAX_PLACE_KM = 10.0
+    /** A note should sit on the route; one this far off isn't shown during playback. */
+    private const val MAX_NOTE_KM = 5.0
     private const val MIN_PIECE_KM = 0.2
 
     class Vertex(val lat: Double, val lon: Double, val time: Long?)
@@ -56,7 +60,8 @@ object TripPlayback {
         val unit: Double,
         val dwellMs: Long,
         val photo: MediaItem? = null,
-        val incident: Incident? = null
+        val incident: Incident? = null,
+        val note: MapNote? = null
     ) {
         val time: Long get() = photo?.timestamp ?: incident?.timestamp ?: 0L
     }
@@ -107,7 +112,7 @@ object TripPlayback {
 
     private class RawPiece(val vertices: List<Vertex>, val transport: TransportType?, val dashed: Boolean)
 
-    fun build(trail: List<RoutePoint>, legs: List<Leg>, media: List<MediaItem>, incidents: List<Incident>): Timeline {
+    fun build(trail: List<RoutePoint>, legs: List<Leg>, media: List<MediaItem>, incidents: List<Incident>, notes: List<MapNote> = emptyList()): Timeline {
         val raw = mutableListOf<RawPiece>()
         RouteShape.splitByTransport(trail, legs).forEach { piece ->
             raw += RawPiece(piece.points.map { Vertex(it.lat, it.lon, it.timestamp) }, piece.transport, dashed = false)
@@ -138,7 +143,7 @@ object TripPlayback {
             Piece(vertices, r.transport, r.dashed, startUnit, units, cumulative).also { startUnit += units }
         }
 
-        return Timeline(pieces, buildEvents(pieces, media, incidents))
+        return Timeline(pieces, buildEvents(pieces, media, incidents, notes))
     }
 
     /** Every [stride]th vertex, always keeping the first and the last. */
@@ -147,7 +152,7 @@ object TripPlayback {
         return vertices.filterIndexed { i, _ -> i % stride == 0 || i == vertices.lastIndex }
     }
 
-    private fun buildEvents(pieces: List<Piece>, media: List<MediaItem>, incidents: List<Incident>): List<Event> {
+    private fun buildEvents(pieces: List<Piece>, media: List<MediaItem>, incidents: List<Incident>, notes: List<MapNote>): List<Event> {
         if (pieces.isEmpty()) return emptyList()
         val locator = Locator(pieces)
 
@@ -160,7 +165,11 @@ object TripPlayback {
         val shownIncidents = incidents.mapNotNull { incident ->
             locator.unitFor(incident.timestamp, incident.lat, incident.lon)?.let { Event(it, INCIDENT_DWELL_MS, incident = incident) }
         }
-        return (shownPhotos + shownIncidents).sortedWith(compareBy({ it.unit }, { it.time }))
+        // A note has no time of its own, only a place, so it stops where the route passes closest to it.
+        val shownNotes = notes.mapNotNull { note ->
+            locator.unitForPlace(note.lat, note.lon, MAX_NOTE_KM)?.let { Event(it, NOTE_DWELL_MS, note = note) }
+        }
+        return (shownPhotos + shownIncidents + shownNotes).sortedWith(compareBy({ it.unit }, { it.time }))
     }
 
     /**
@@ -173,6 +182,19 @@ object TripPlayback {
         private val byTime: List<Knot> = pieces
             .flatMap { p -> p.vertices.mapIndexedNotNull { i, v -> v.time?.let { Knot(it, p.unitAt(i)) } } }
             .sortedBy { it.time }
+
+        /** The place on the route nearest to a point, if that is within [maxKm]. */
+        fun unitForPlace(lat: Double, lon: Double, maxKm: Double): Double? {
+            var best: Double? = null
+            var bestKm = maxKm
+            pieces.forEach { p ->
+                p.vertices.forEachIndexed { i, v ->
+                    val km = RouteShape.distanceKm(lat, lon, v.lat, v.lon)
+                    if (km <= bestKm) { bestKm = km; best = p.unitAt(i) }
+                }
+            }
+            return best
+        }
 
         fun unitFor(time: Long, lat: Double?, lon: Double?): Double? {
             if (byTime.isNotEmpty() && time >= byTime.first().time - TIME_SLACK_MS && time <= byTime.last().time + TIME_SLACK_MS) {

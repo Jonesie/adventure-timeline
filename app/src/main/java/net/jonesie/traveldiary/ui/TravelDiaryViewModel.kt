@@ -22,6 +22,8 @@ import net.jonesie.traveldiary.data.Companion
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.IncidentPersonCrossRef
 import net.jonesie.traveldiary.data.Leg
+import net.jonesie.traveldiary.data.MapNote
+import net.jonesie.traveldiary.data.MapNoteCategory
 import net.jonesie.traveldiary.data.MediaItem
 import net.jonesie.traveldiary.data.MediaType
 import net.jonesie.traveldiary.data.TransportType
@@ -34,6 +36,7 @@ import net.jonesie.traveldiary.data.RoutePoint
 import net.jonesie.traveldiary.util.ActivityLeg
 import net.jonesie.traveldiary.util.GpxLeg
 import net.jonesie.traveldiary.util.IncidentPlace
+import net.jonesie.traveldiary.util.MapNotePlace
 import net.jonesie.traveldiary.util.GpxRoute
 import net.jonesie.traveldiary.util.NEARBY_RADIUS_DEGREES_SQUARED
 import net.jonesie.traveldiary.util.CameraRoll
@@ -112,6 +115,19 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
             if (route != null) {
                 withContext(Dispatchers.IO) { dao.insertRoutePoints(route.toRoutePoints(tripId, startDate).sortedBy { it.timestamp }) }
                 insertGpxLegs(tripId, route.toLegs(startDate))
+                if (route.notes.isNotEmpty()) {
+                    val legs = dao.getLegsForTrip(tripId)
+                    val trail = dao.getRoutePointsForTrip(tripId)
+                    val now = System.currentTimeMillis()
+                    route.notes.forEach { n ->
+                        dao.insertMapNote(
+                            MapNote(
+                                tripId = tripId, legId = MapNotePlace.legFor(n.lat, n.lon, trail, legs)?.id,
+                                lat = n.lat, lon = n.lon, text = n.text, category = n.category, createdAt = now
+                            )
+                        )
+                    }
+                }
                 assignIncidentsToTrips()
             }
             companionNames.map { it.trim() }.filter { it.isNotEmpty() }.forEach { name ->
@@ -343,6 +359,40 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         dao.addIncidentPeopleToTrips()
     }
 
+    suspend fun mapNote(id: Long): MapNote? = withContext(Dispatchers.IO) { dao.getMapNote(id) }
+
+    /**
+     * Saves a note, working out which leg of the trip its place belongs to. [fallbackLegId] is the leg it was added
+     * from, used when the place doesn't say; an existing note keeps its leg in that case too.
+     */
+    suspend fun saveMapNote(
+        existing: MapNote?, tripId: Long, lat: Double, lon: Double, text: String,
+        category: MapNoteCategory?, shareable: Boolean, fallbackLegId: Long? = null
+    ) = withContext(Dispatchers.IO) {
+        val legs = dao.getLegsForTrip(tripId)
+        val matched = MapNotePlace.legFor(lat, lon, dao.getRoutePointsForTrip(tripId), legs)?.id
+        val legId = matched ?: (existing?.legId ?: fallbackLegId)?.takeIf { id -> legs.any { it.id == id } }
+        val clean = MapNotePlace.clean(text)
+        if (existing == null) {
+            dao.insertMapNote(MapNote(tripId = tripId, legId = legId, lat = lat, lon = lon, text = clean, category = category, createdAt = System.currentTimeMillis(), shareable = shareable))
+        } else {
+            dao.updateMapNote(existing.copy(legId = legId, lat = lat, lon = lon, text = clean, category = category, shareable = shareable))
+        }
+    }
+
+    fun deleteMapNote(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) { dao.deleteMapNote(id) }
+    }
+
+    /** After a Timeline re-import replaces a trip's legs, ties notes that lost their leg to whichever one now fits. */
+    private suspend fun rematchMapNotes(tripId: Long) {
+        val orphans = dao.getMapNotesForTrip(tripId).filter { it.legId == null }
+        if (orphans.isEmpty()) return
+        val legs = dao.getLegsForTrip(tripId)
+        val trail = dao.getRoutePointsForTrip(tripId)
+        orphans.forEach { note -> MapNotePlace.legFor(note.lat, note.lon, trail, legs)?.let { dao.setMapNoteLeg(note.id, it.id) } }
+    }
+
     /** The trip's route as lat/lon pairs for picking a place on it: the GPS trail, thinned, else the legs' stops in order. */
     suspend fun routeForPicker(tripId: Long): List<Pair<Double, Double>> = withContext(Dispatchers.IO) {
         val trail = dao.getRoutePointsForTrip(tripId).sortedBy { it.timestamp }
@@ -476,6 +526,7 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
                 pathPoints.sortedBy { it.timestamp }.map { RoutePoint(tripId = tripId, lat = it.lat, lon = it.lon, timestamp = it.timestamp) }
             )
         }
+        rematchMapNotes(tripId)
         assignIncidentsToTrips()
     }
 
@@ -1062,6 +1113,7 @@ class ShareViewState(private val prefs: android.content.SharedPreferences) {
     var includeRoute: Boolean by flag("shareRoute", true)
     var includeLegs: Boolean by flag("shareLegs", false)
     var includeIncidents: Boolean by flag("shareIncidents", false)
+    var includeMapNotes: Boolean by flag("shareMapNotes", true)
 
     private fun flag(key: String, default: Boolean) = object : kotlin.properties.ReadWriteProperty<Any?, Boolean> {
         private var value = prefs.getBoolean(key, default)

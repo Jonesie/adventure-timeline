@@ -186,7 +186,8 @@ class MapExport(
     val waypoints: List<GeoPoint>,
     val pins: List<ExportPin>,
     val start: GeoPoint?,
-    val end: GeoPoint?
+    val end: GeoPoint?,
+    val notes: List<GeoPoint> = emptyList()
 )
 
 /**
@@ -265,6 +266,13 @@ fun captureMapImage(mapView: MapView, export: MapExport?, dark: Boolean, scale: 
         val rect = android.graphics.RectF(p.x - half, p.y - half, p.x + half, p.y + half)
         canvas.drawRoundRect(rect, 3f * density, 3f * density, fill(if (pin.video) 0xFF7B1FA2.toInt() else 0xFF00897B.toInt()))
         canvas.drawRoundRect(rect, 3f * density, 3f * density, stroke(white, 1.5f, false))
+    }
+    export.notes.forEach { g ->
+        val p = px(g)
+        val half = 7f * density
+        val rect = android.graphics.RectF(p.x - half, p.y - half, p.x + half, p.y + half)
+        canvas.drawRoundRect(rect, 3.5f * density, 3.5f * density, fill(NOTE_COLOUR))
+        canvas.drawRoundRect(rect, 3.5f * density, 3.5f * density, stroke(white, 1.5f, false))
     }
     export.start?.let { g ->
         val p = px(g)

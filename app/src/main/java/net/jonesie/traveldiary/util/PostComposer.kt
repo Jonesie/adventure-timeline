@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.jonesie.traveldiary.data.Incident
 import net.jonesie.traveldiary.data.Leg
+import net.jonesie.traveldiary.data.MapNoteCategory
 import net.jonesie.traveldiary.data.MediaItem
 import net.jonesie.traveldiary.data.TransportType
 import net.jonesie.traveldiary.data.TripDetail
@@ -28,7 +29,9 @@ data class PostOptions(
     val includeCompanions: Boolean,
     val includeNotes: Boolean,
     /** Places inside this area are written as "home" rather than by name. */
-    val hidden: HiddenArea? = null
+    val hidden: HiddenArea? = null,
+    /** Notes pinned to the route that their author marked as shareable. */
+    val includeMapNotes: Boolean = true
 )
 
 /** One block of a post. [accent] marks the incident highlights. */
@@ -79,6 +82,10 @@ object PostComposer {
             val lines = trip.incidents.sortedBy { it.timestamp }.joinToString("") { "\n⚠ " + incidentLine(it) }
             paragraphs += PostParagraph("⚠ Incidents:$lines", accent = true)
         }
+        if (options.includeMapNotes) {
+            val lines = mapNoteLines(trip, options.hidden)
+            if (lines.isNotEmpty()) paragraphs += PostParagraph("📍 Notes along the way:" + lines.joinToString("") { "\n• $it" })
+        }
         if (options.includeCompanions && trip.companions.isNotEmpty()) {
             paragraphs += PostParagraph("With " + joinNames(trip.companions.map { it.name }))
         }
@@ -95,6 +102,22 @@ object PostComposer {
         val severity = severityLabel(incident.severity)?.lowercase()?.let { " ($it)" } ?: ""
         val notes = incident.notes.lines().map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" ")
         return incident.category.label() + severity + if (notes.isNotEmpty()) ": $notes" else ""
+    }
+
+    /**
+     * The trip's shareable map notes, one line each, in leg order ("Road condition: lots of potholes"). Ones inside the
+     * hidden home area are left out.
+     */
+    internal fun mapNoteLines(trip: TripDetail, hidden: HiddenArea? = null): List<String> {
+        val legStart = trip.legs.associate { it.id to it.startTime }
+        val notes = trip.mapNotes
+            .filter { it.shareable && hidden?.contains(it.lat, it.lon) != true }
+            .sortedWith(compareBy({ it.legId?.let { id -> legStart[id] } ?: Long.MAX_VALUE }, { it.createdAt }, { it.id }))
+        val lines = notes.map { n ->
+            val kind = n.category?.takeIf { it != MapNoteCategory.OTHER }?.label()
+            if (kind != null) "$kind: ${n.text}" else n.text
+        }
+        return if (lines.size <= MAX_LEG_LINES) lines else lines.take(MAX_LEG_LINES) + "…and ${lines.size - MAX_LEG_LINES} more"
     }
 
     /** One line per leg in time order: "Christchurch → Hanmer Springs · motorbike". Long trips keep the first [MAX_LEG_LINES]. */
