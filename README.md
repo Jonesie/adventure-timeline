@@ -100,6 +100,10 @@ versions for the Play listing are in `docs/play/screenshots/`.*
 - **Google Timeline import**: pulls the trips Google has already detected, with their legs, transport
   and route. Re-importing updates existing trips in place and keeps your manual changes
   (hand-edited transport and titles).
+- **GPX import**: when adding a trip, pick a `.gpx` file from a GPS unit, Strava, Komoot or this app's own
+  export. Its track becomes the trip's route and its name and dates fill in the title and dates. Each track
+  becomes legs, split wherever you stopped for five minutes or more (fuel, lunch, overnight), with the transport guessed from the file or
+  from how fast it moved. Edit it on the leg if it guessed wrong. It's read on the phone and never uploaded.
 - **"Have I been here before?"**: tap the compass icon to list earlier notes and media recorded
   within about 1 km of where you are now.
 - **Place names**: looked up with Android's Geocoder. Local places show just the town or suburb;

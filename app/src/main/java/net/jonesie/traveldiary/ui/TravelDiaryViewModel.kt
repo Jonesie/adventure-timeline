@@ -32,6 +32,8 @@ import net.jonesie.traveldiary.data.TravelDiaryDatabase
 import androidx.room.withTransaction
 import net.jonesie.traveldiary.data.RoutePoint
 import net.jonesie.traveldiary.util.ActivityLeg
+import net.jonesie.traveldiary.util.GpxLeg
+import net.jonesie.traveldiary.util.GpxRoute
 import net.jonesie.traveldiary.util.NEARBY_RADIUS_DEGREES_SQUARED
 import net.jonesie.traveldiary.util.CameraRoll
 import net.jonesie.traveldiary.util.ContactsHelper
@@ -100,13 +102,49 @@ class TravelDiaryViewModel(application: Application) : AndroidViewModel(applicat
         return linked to unlinked.size
     }
 
-    fun addTrip(title: String, startDate: Long, endDate: Long?, notes: String, companionNames: List<String>, onDone: (Long) -> Unit) {
+    fun addTrip(
+        title: String, startDate: Long, endDate: Long?, notes: String, companionNames: List<String>,
+        route: GpxRoute? = null, onDone: (Long) -> Unit
+    ) {
         viewModelScope.launch {
             val tripId = dao.insertTrip(Trip(title = title, startDate = startDate, endDate = endDate, notes = notes))
+            if (route != null) {
+                withContext(Dispatchers.IO) { dao.insertRoutePoints(route.toRoutePoints(tripId, startDate).sortedBy { it.timestamp }) }
+                insertGpxLegs(tripId, route.toLegs(startDate))
+                assignIncidentsToTrips()
+            }
             companionNames.map { it.trim() }.filter { it.isNotEmpty() }.forEach { name ->
                 dao.insertTripCompanionCrossRef(TripCompanionCrossRef(tripId, companionIdFor(name)))
             }
             onDone(tripId)
+        }
+    }
+
+    /** Legs for a trip made from a GPX file, named by where each one started and ended. */
+    private suspend fun insertGpxLegs(tripId: Long, legs: List<GpxLeg>) {
+        if (legs.isEmpty()) return
+        val context = getApplication<Application>()
+        val coords = legs.flatMap { listOf(it.originLat to it.originLon, it.destinationLat to it.destinationLon) }.distinct()
+        val places = HashMap<Pair<Double, Double>, String>()
+        coords.chunked(5).forEach { batch ->
+            coroutineScope {
+                batch.map { c -> async(Dispatchers.IO) { c to ReverseGeocoder.lookup(context, c.first, c.second)?.format(false) } }.awaitAll()
+            }.forEach { (c, name) -> if (!name.isNullOrBlank()) places[c] = name }
+        }
+        fun nameFor(lat: Double, lon: Double) = places[lat to lon] ?: "%.4f, %.4f".format(lat, lon)
+        legs.forEach { leg ->
+            dao.insertLeg(
+                Leg(
+                    tripId = tripId,
+                    transportType = leg.transport,
+                    originName = nameFor(leg.originLat, leg.originLon),
+                    destinationName = nameFor(leg.destinationLat, leg.destinationLon),
+                    startTime = leg.startTime,
+                    endTime = leg.endTime,
+                    originLat = leg.originLat, originLon = leg.originLon,
+                    destinationLat = leg.destinationLat, destinationLon = leg.destinationLon
+                )
+            )
         }
     }
 
